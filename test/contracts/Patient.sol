@@ -38,7 +38,6 @@ contract Patient {
     function addNewMedicalRecord(address patientAddress, address medicalRecordAddress) public {
         require(medicalRecordContract.checkIsIssuedBy(msg.sender), "Only the organization that issued the record can add it to the patient");
         require(medicalRecordContract.checkIsValid(medicalRecordAddress), "Medical record is not valid");
-        //patient address must be actual patient?
 
         recordMap[patientAddress].push(medicalRecordAddress);        
     }
