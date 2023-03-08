@@ -1,43 +1,57 @@
 pragma solidity ^0.5.0;
+import "./Organization.sol";
+import "./MedicalRecord.sol";
 
 contract Patient {
-    struct patient {
-        //patient basic info
-        string NRIC;
-        // more to add
-        address owner;
-        mapping(uint256 => string) medicalRecords;
+
+    struct profile {
+        address issuedBy; // organization that add this user as patient
+        address patientAddress;
+        uint8 age;
+        patientGender gender;
+        string country;
     }
 
-    mapping(uint256 => patient) public patients;
-    uint256 public numPatients = 0;
+    Organization organizationContract;
+    MedicalRecord medicalRecordContract;
+    address marketPlace;
+    mapping(address => profile) public profileMap;
+    mapping(address => address[]) public recordMap; // list of medical records associated with each patient
 
-   //modifier to ensure a function is callable only by its owner    
-    modifier ownerOnly(uint256 patientId) {
-        require(patients[patientId].owner == msg.sender);
-        _;
-    }
-    
-    modifier validPatientId(uint256 patientId) {
-        require(patientId < numPatients);
-        _;
-    }
+    function addUserAsPatient(address patientAddress, uint8 age, string memory gender, string memory country) public { 
+        //Only verified organizations can add user
+        require(organizationContract.checkIsVerifiedOrganization(msg.sender), "Only verified organizations can add user");
+        require(gender == "M" || gender == "F", "Gender input wrong format");
 
-    //are we giving patients value?
-     function addNewPatient(string memory nric) public returns(uint256) { 
         //new patient object
-        patient memory newPatient = patient(
-            nric,
-            msg.sender  //owner
+        profile newProfile = profile(
+            msg.sender,
+            patientAddress,
+            age,
+            gender,
+            country
         );
 
-        uint256 newPatientId = numPatients++;
-        patients[newPatientId] = newPatient; 
-        return newPatientId; 
+        profileMap[patientAddress] = newProfile; 
     }
 
-    //transfer ownership of patient?
-    function transferOwnership(uint256 patientId, address newOwner) public ownerOnly(patientId) validPatientId(patientId) {
-        patients[patientId].owner = newOwner;
+    function addNewMedicalRecord(address patientAddress, address medicalRecordAddress) public {
+        //only verified organizations can call the method
+        require(organizationContract.checkIsVerifiedOrganization(msg.sender), "Only verified organizations can add medical records");
+        
+        require(medicalRecordContract.checkIsValid(medicalRecordAddress), "Medical record is not valid");
+
+        recordMap[patientAddress].push(medicalRecordAddress);        
+    }
+
+    function getMedicalRecords(address patientAddress) public view returns(address[]) {
+        require(msg.sender == patientAddress || msg.sender == marketPlace, "Only patients themselves and marketplace can access the call");
+        return recordMap[patientAddress];
+    }
+
+    // only marketplace owner can call the method
+    function addMarketPlace(address marketAddress) public {
+        require(marketPlace.checkIsOwner(msg.sender), "Only marketplace owner can add marketplace");
+        marketPlace = marketAddress;
     }
 }
