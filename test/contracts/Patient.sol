@@ -36,7 +36,9 @@ contract Patient {
     }
 
     function addNewMedicalRecord(address patientAddress, address medicalRecordAddress) public {
-        require(medicalRecordContract.checkIsIssuedBy(msg.sender), "Only the organization that issued the record can add it to the patient");
+        //only verified organizations can call the method
+        require(organizationContract.checkIsVerifiedOrganization(msg.sender), "Only verified organizations can add medical records");
+        
         require(medicalRecordContract.checkIsValid(medicalRecordAddress), "Medical record is not valid");
 
         recordMap[patientAddress].push(medicalRecordAddress);        
@@ -47,7 +49,9 @@ contract Patient {
         return recordMap[patientAddress];
     }
 
+    // only marketplace owner can call the method
     function addMarketPlace(address marketAddress) public {
+        require(marketPlace.checkIsOwner(msg.sender), "Only marketplace owner can add marketplace");
         marketPlace = marketAddress;
     }
 }
