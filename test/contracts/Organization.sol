@@ -1,31 +1,86 @@
 pragma solidity >=0.4.22 <0.7.0;
 import "./Marketplace";
-
+import "./Patient.sol";
+import "./MedicalRecord.sol";
 
 contract Organization {
+
+    
+    // Attributes
+    struct profile {
+        OrganizationType organizationType; 
+        string location;
+        string organizationName;
+        address verifiedBy; // the address of user that verified this organization
+    }    
+
     enum OrganizationType {
         Hospital,
-        ResearchLabs
+        Research, 
+        Pharmacy 
     }
+
+    address[] verifiedUsers; // predefined list of verified organization
+    address marketPlace;
+    mapping(address => profile) public organizationProfileMap;
+
+    Patient patientContract;
+    MedicalRecord medicalRecordContract;
     
-    Marketplace marketplace;
-    // MedicalRecord medicalRecord;
-    OrganizationType public typeOfBuyer;
 
-    
-    modifier isOwner() {
-        require(msg.sender == owner, "Caller is not owner");
-        _;
+    function addNewPatient(address userAddress, address patientAddress, uint8 age, string memory gender, string memory country) public {
+        patientContract.addUserAsPatient( patientAddress,  age, gender,country); 
     }
 
-    function referUser(address newBuyer) public isOwner {
-        marketplace.addToListOfAuthenticatedBuyers(newBuyer);
+    function addNewOrganisation(address userAddress, OrganizationType organizationType, string location, string organizationName, address verifiedBy) public {
+        profile memory newOrganization = profile(
+            organizationType, 
+            location, 
+            organizationName, 
+            verifiedBy
+        ); 
+        organizationProfileMap[userAddress] = newOrganization; 
+    }    
+
+    function removeOrganization(address userAddress) public {
+        require(msg.sender == organizationProfileMap[userAddress].verifiedBy, "Caller not eligible to remove organization.");
+ 
+        delete organizationProfileMap[userAddress];
+        helper_removefromlist( serAddress);
+    }        
+
+    // Helper function to remove from veririfedList
+    function helper_removefromlist(address userAddress) internal returns (uint256) {
+        uint256 index; 
+        for (address i = 0; i < verifiedUsers.length; i++) {
+            if (verifiedUsers[i] == userAddress) {
+                index = i;
+            }
+        }
+        revert("No such organization.");
+        for (uint256 i = index; i < verifiedUsers.length - 1; i++) {
+            verifiedUsers[i] = verifiedUsers[i + 1];
+        }
+
+        verifiedUsers.pop();        
     }
 
-    /*
-    Only hopsitals can upload records 
-     */
-    function upload(address medicalRecordAddress) public isOwner {
+    // function addNewMedicalRecord(uint256 filePointer, address patientAddress, uint256 fileBytes) public {
 
-    }
+    //     MedicalRecord mr = new MedicalRecord(); 
+    //     mr memory newmedicalrecord = mr(
+    //         // TODO: update the MR contructor
+    //     );
+
+    // }        
+
+
+    function checkIsVerifiedOrganization(address userAddress) public {
+        for (address i = 0; i < verifiedUsers.length; i++) {
+            if (verifiedUsers[i] == userAddress) {
+                return true;
+            }
+        }        
+    }   
+
 }
