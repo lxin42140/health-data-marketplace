@@ -21,18 +21,23 @@ contract Marketplace {
     }
 
     struct Purchase {
-        uint256 listingId;
+        Listing listing; // listing snapshot
         uint256 accessStartDate;
         uint256 expirationDate;
         string otp;
+        address[] medicalRecordPointers;
+    }
+
+    struct QueryResponse {
+        Listing[] matchingListings;
     }
 
     /** PROPERTIES */
     // owner of marketplace
     address owner;
     // commission of marketplace e.g. 10 == 10%
-    uint256 public marketComissionRate;
-    uint256 public orgComissionRate;
+    uint256 public marketCommissionRate;
+    uint256 public orgCommissionRate;
     // to use as ID, increment only
     uint256 listingId;
     // map id to the listing
@@ -42,8 +47,8 @@ contract Marketplace {
 
     /** EVENTS */
     event ListingAdded(address seller, uint256 listingId); // event of adding a listing
-    event ListingRemoved(uint256 listingId); // event of removing a listing
-    event AccessPurchases(
+    event ListingRemoved(uint256 listingId, String description); // event of removing a listing
+    event ListingPurchased(
         address buyer,
         uint256 listingId,
         uint256 startDate,
@@ -56,6 +61,8 @@ contract Marketplace {
         comissionFee = fee;
         listingId = 1;
     }
+
+    /********************MODIFIERS *****/
 
     modifier ownerOnly() {
         require(msg.sender == owner, "Only owner can perform this action!");
@@ -89,8 +96,26 @@ contract Marketplace {
         _;
     }
 
+    modifier removeExpiredListing() {
+        for (uint i = 0; i <= listingId; i++) {
+            if (isExpired(listingMap[i].expirationDate)) {
+                delete listingMap[i];
+                emit ListingRemoved(i, "Expired listing");
+            }
+        }
+
+        _;
+    }
+
+    /********************UTILITY FUNCTIONS *****/
+
+    // returns true if input date is earlier than block timestamp
+    function isExpired(uint256 date) private pure returns (bool) {
+        return date > 0 && now > date;
+    }
+
     // generate a 6 digit OTP which is used to access the DB
-    function generateRandomOTP() private view returns (uint256) {
+    function generateRandomOTP() private pure returns (uint256) {
         uint256 seed = uint256(
             keccak256(abi.encodePacked(block.timestamp, block.difficulty))
         );
@@ -99,12 +124,24 @@ contract Marketplace {
         return otp;
     }
 
+    /********************APIS *****/
+
+    function checkIsOwner(address user) public view returns (bool) {
+        return user == owner;
+    }
+
     function addListing(
         uint256 price,
         string memory recordTypes,
         string memory allowOrganizationTypes,
         uint256 daysTillExpiry
-    ) public patientOnly hasRecordsOnly(recordTypes) returns (uint256) {
+    )
+        public
+        patientOnly
+        hasRecordsOnly(recordTypes)
+        removeExpiredListing
+        returns (Listing memory)
+    {
         // determine expiry, if any
         uint256 expiry = 0;
         if (daysTillExpiry > 0) {
@@ -124,14 +161,16 @@ contract Marketplace {
             allowOrganizationTypes,
             expiry
         );
+
         listingMap[listingId] = newListing;
         emit ListingAdded(msg.sender, listingId);
 
-        // return listing id
-        return listingId;
+        return listingMap[listingId];
     }
 
-    function removeListing(uint256 id) public validListingOnly(id) {
+    function removeListing(
+        uint256 id
+    ) public validListingOnly(id) returns (Listing memory) {
         Listing memory listing = listingMap[id];
 
         // only listing ower can remove listing
@@ -142,13 +181,23 @@ contract Marketplace {
 
         delete listingMap[id];
 
-        emit ListingRemoved(id);
+        emit ListingRemoved(id, "Remove by owner");
+
+        return listing;
     }
 
     function buyListing(
         uint256 id,
         uint256 daysToPurchase
-    ) public validListingOnly(id) organisationOnly returns (uint256) {
+    )
+        public
+        organisationOnly
+        removeExpiredListing
+        validListingOnly(id)
+        returns (Purchase memory)
+    {
+        /**************PURCHASE REQUIREMENT CHECK******/
+
         // must purchase for at least 30 days
         require(daysToPurchase > 30, "Invalid purchase duration! Min 30 days");
 
@@ -160,13 +209,9 @@ contract Marketplace {
 
         Listing listing = listingMap[id];
 
-        // check if listing is expired
-        if (listing.expirationDate > 0) {
-            require(block.timestamp <= timestamp, "Listing has expired!");
+        if (listing.allowOrganizationTypes) {
+            // TODO: check if buyer is allowed to purchase listing
         }
-
-        // TODO: check if buyer is allowed to purchase listing
-        if (listing.allowOrganizationTypes) {}
 
         // check if buyer has enough tokens to pay
         // for now, default to charge by per day
@@ -176,45 +221,119 @@ contract Marketplace {
             "Insufficient tokens!"
         );
 
-        /****************check if buyer has previously purchased the listing*/
+        /**************PURCHASE RECORD******/
+
+        // find existing purchase associated with the same listing
         Purchase[] memory existingPurchases = purchases[msg.sender];
-        Purchase purchase = 0;
+        uint256 index = -1;
         for (uint i = 0; i < existingPurchases.length; i++) {
-            if (existingPurchases[i].listingId == listing.id) {
-                purchase = existingPurchases[i];
+            if (existingPurchases[i].listingId == id) {
+                index = i;
                 break;
             }
         }
 
-        if (purchase != 0) {
-            // existing purchase exists, extend expiration date
-            purchase.expirationDate += (daysToPurchase * SECONDS_IN_DAYS);
+        if (index > 0) {
+            // if access is not expired, prevent buyer from purchasing again
+            require(
+                isExpired(existingPurchases[index].expirationDate),
+                "Previous purchase has not expired yet!"
+            );
+
+            // if listing has expired, update the purchase details
+            existingPurchases[index].accessStartDate = now;
+            existingPurchases[index].expirationDate =
+                now +
+                (daysToPurchase * SECONDS_IN_DAYS);
+            existingPurchases[index].otp = generateRandomOTP();
         } else {
             // create new purchase history and add to list
             Purchase memory newPurchase = Purchase(
-                id, // listing id,
+                listing, // struct is pass by value
                 now, // access start date
                 now + (daysToPurchase * SECONDS_IN_DAYS), // expiry date of access
                 generateRandomOTP() // OTP to access DB
             );
+
+            // add to purchases
             purchases[msg.sender].push(newPurchase);
-            purchase = newPurchase;
+            index = purchases[msg.sender].length - 1;
         }
 
-        /****************fund transfer*/
-        uint256 marketCommission = totalPrice / 100 * marketComissionRate;
-        uint256 orgComission = totalPrice / 100 * orgComission;
+        /**************FUND TRANSFER******/
+
+        uint256 marketCommission = (totalPrice / 100) * marketCommissionRate;
+        uint256 orgComission = (totalPrice / 100) * orgComission;
         uint256 sellerEarning = totalPrice - marketCommission - orgComission;
-        
+
         address patient = listing.listingOwner;
         //TODO: get issued by of patient
-        
 
-        // return OTP
-        return purchase.otp;
+        MedToken.transferCredit(address(this), marketCommission);
+        MedToken.transferCredit(listing.listingOwner, sellerEarning);
+        //TODO: transfer credit to the org that added the user
+
+        emit ListingPurchased(
+            msg.sender,
+            id,
+            purchase.accessStartDate,
+            purchase.expirationDate,
+            totalPrice
+        );
+
+        return purchases[msg.sender][index];
     }
 
-    function checkIsOwner(address user) public view returns (bool) {
-        return user == owner;
+    function getPurchaseDetails(
+        uint256 id
+    ) public organisationOnly removeExpiredListing returns (Purchase memory) {
+        Purchase[] memory orgPurchaseHistory = purchases[msg.sender];
+        uint256 index = -1;
+
+        // find the purchase
+        for (uint i = 0; i < orgPurchaseHistory.length; i++) {
+            if (orgPurchaseHistory[i].listing.id == id) {
+                index = i;
+                break;
+            }
+        }
+
+        // check if org has purchased the listing
+        require(index > 0, "Did not purchase the listing!");
+
+        Purchase memory purchase = orgPurchaseHistory[index];
+
+        // check if accesss has expired
+        require(!isExpired(purchase.expirationDate), "Purchase has expired!");
+
+        address patient = purchase.listing.listingOwner;
+        //TODO: get matching medical record addresses from patients
+
+        return purchase;
+    }
+
+    function searchListings(
+        uin256 age,
+        string memory gender,
+        string memory country,
+        string memory medicalRecordType
+    )
+        public
+        organisationOnly
+        removeExpiredListing
+        returns (QueryResponse memory)
+    {
+        Listing[] memory matchingListings = Listing[];
+        for (uint i = 0; i <= listingId; i++) {
+            Listing memory currListing = listingMap[i];
+
+            // TODO: use patient to get the profile and check base on filter
+            // TODO: use patient to get listing of medical records
+            // TODO: use list of medical records to check if any of the records are matching
+        }
+
+        QueryResponse memory resp = QueryResponse(matchingListings);
+
+        return resp;
     }
 }
