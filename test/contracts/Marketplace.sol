@@ -1,6 +1,7 @@
 pragma solidity ^0.5.0;
 import "./Organization.sol";
 import "./Patient.sol";
+import "./MedToken.sol";
 
 contract Marketplace {
     /** CONSTANTS */
@@ -21,6 +22,7 @@ contract Marketplace {
 
     struct Purchase {
         uint256 listingId;
+        uint256 accessStartDate;
         uint256 expirationDate;
         string otp;
     }
@@ -28,21 +30,28 @@ contract Marketplace {
     /** PROPERTIES */
     // owner of marketplace
     address owner;
-    // commission of marketplace
-    uint256 public comissionFee;
+    // commission of marketplace e.g. 10 == 10%
+    uint256 public marketComissionRate;
+    uint256 public orgComissionRate;
     // to use as ID, increment only
     uint256 listingId;
     // map id to the listing
-    mapping(uint256 => Listing) listingMap;
+    mapping(uint => Listing) listingMap;
     // map buyer address to list of its purchases
     mapping(address => Purchase[]) purchases;
 
     /** EVENTS */
     event ListingAdded(address seller, uint256 listingId); // event of adding a listing
     event ListingRemoved(uint256 listingId); // event of removing a listing
-    event AccessPurchases(address buyer, uint256 listingId, uint256 expiryDate, uint256 amount);
+    event AccessPurchases(
+        address buyer,
+        uint256 listingId,
+        uint256 startDate,
+        uint256 expiryDate,
+        uint256 paidPrice
+    ); // event of purchasing a listing access
 
-    constructor(uint256 fee) public {
+    constructor(uint256 marketFee, uint256 orgFee) public {
         owner = msg.sender;
         comissionFee = fee;
         listingId = 1;
@@ -141,7 +150,7 @@ contract Marketplace {
         uint256 daysToPurchase
     ) public validListingOnly(id) organisationOnly returns (uint256) {
         // must purchase for at least 30 days
-        require(daysToPurchase > 30, "Invalid purchase duration!");
+        require(daysToPurchase > 30, "Invalid purchase duration! Min 30 days");
 
         // Only verified buyers can buy
         require(
@@ -151,17 +160,25 @@ contract Marketplace {
 
         Listing listing = listingMap[id];
 
-        // TODO: check if buyer is allowed to purchase listing
-        if (listing.allowOrganizationTypes) {}
-
         // check if listing is expired
         if (listing.expirationDate > 0) {
             require(block.timestamp <= timestamp, "Listing has expired!");
         }
 
+        // TODO: check if buyer is allowed to purchase listing
+        if (listing.allowOrganizationTypes) {}
+
+        // check if buyer has enough tokens to pay
+        // for now, default to charge by per day
+        uint256 totalPrice = listing.price * daysToPurchase;
+        require(
+            MedToken.checkCredit(msg.sender) >= totalPrice,
+            "Insufficient tokens!"
+        );
+
         /****************check if buyer has previously purchased the listing*/
         Purchase[] memory existingPurchases = purchases[msg.sender];
-        Purchase memory purchase = 0;
+        Purchase purchase = 0;
         for (uint i = 0; i < existingPurchases.length; i++) {
             if (existingPurchases[i].listingId == listing.id) {
                 purchase = existingPurchases[i];
@@ -171,14 +188,13 @@ contract Marketplace {
 
         if (purchase != 0) {
             // existing purchase exists, extend expiration date
-            purchase.expirationDate += (daysToPurchase *
-                SECONDS_IN_DAYS);
+            purchase.expirationDate += (daysToPurchase * SECONDS_IN_DAYS);
         } else {
-            uint expiry = now + (daysToPurchase * SECONDS_IN_DAYS);
             // create new purchase history and add to list
             Purchase memory newPurchase = Purchase(
-                id, // listing id
-                expiry, // expiry date of access
+                id, // listing id,
+                now, // access start date
+                now + (daysToPurchase * SECONDS_IN_DAYS), // expiry date of access
                 generateRandomOTP() // OTP to access DB
             );
             purchases[msg.sender].push(newPurchase);
@@ -186,13 +202,19 @@ contract Marketplace {
         }
 
         /****************fund transfer*/
-        //TODO: fund transfer after adding in token contract
+        uint256 marketCommission = totalPrice / 100 * marketComissionRate;
+        uint256 orgComission = totalPrice / 100 * orgComission;
+        uint256 sellerEarning = totalPrice - marketCommission - orgComission;
+        
+        address patient = listing.listingOwner;
+        //TODO: get issued by of patient
+        
 
         // return OTP
         return purchase.otp;
     }
 
-    function checkIsOwner(address user) public view returns(bool) {
+    function checkIsOwner(address user) public view returns (bool) {
         return user == owner;
     }
 }
