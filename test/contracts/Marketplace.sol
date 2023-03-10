@@ -1,4 +1,6 @@
 pragma solidity ^0.5.0;
+import "./Organization.sol";
+import "./Patient.sol";
 
 contract Marketplace {
     /** CONSTANTS */
@@ -38,6 +40,7 @@ contract Marketplace {
     /** EVENTS */
     event ListingAdded(address seller, uint256 listingId); // event of adding a listing
     event ListingRemoved(uint256 listingId); // event of removing a listing
+    event AccessPurchases(address buyer, uint256 listingId, uint256 expiryDate, uint256 amount);
 
     constructor(uint256 fee) public {
         owner = msg.sender;
@@ -63,7 +66,6 @@ contract Marketplace {
         _;
     }
 
-
     modifier hasRecordsOnly(string memory recordTypes) {
         // TODO: check that msg.sender has at least one medical records with the provided type, or if none provided
         // at least one record in general
@@ -79,7 +81,7 @@ contract Marketplace {
     }
 
     // generate a 6 digit OTP which is used to access the DB
-    function generateRandomOTP() public view returns (uint256) {
+    function generateRandomOTP() private view returns (uint256) {
         uint256 seed = uint256(
             keccak256(abi.encodePacked(block.timestamp, block.difficulty))
         );
@@ -138,11 +140,59 @@ contract Marketplace {
         uint256 id,
         uint256 daysToPurchase
     ) public validListingOnly(id) organisationOnly returns (uint256) {
-        require(daysToPurchase > 0, "Invalid purchase duration!");
+        // must purchase for at least 30 days
+        require(daysToPurchase > 30, "Invalid purchase duration!");
 
+        // Only verified buyers can buy
+        require(
+            Organization.checkIsVerifiedOrganization(msg.sender),
+            "Only verified organizations can buy listing!"
+        );
 
-        // check if buyer is allowed to purchase listing
+        Listing listing = listingMap[id];
+
+        // TODO: check if buyer is allowed to purchase listing
+        if (listing.allowOrganizationTypes) {}
 
         // check if listing is expired
+        if (listing.expirationDate > 0) {
+            require(block.timestamp <= timestamp, "Listing has expired!");
+        }
+
+        /****************check if buyer has previously purchased the listing*/
+        Purchase[] memory existingPurchases = purchases[msg.sender];
+        Purchase memory purchase = 0;
+        for (uint i = 0; i < existingPurchases.length; i++) {
+            if (existingPurchases[i].listingId == listing.id) {
+                purchase = existingPurchases[i];
+                break;
+            }
+        }
+
+        if (purchase != 0) {
+            // existing purchase exists, extend expiration date
+            purchase.expirationDate += (daysToPurchase *
+                SECONDS_IN_DAYS);
+        } else {
+            uint expiry = now + (daysToPurchase * SECONDS_IN_DAYS);
+            // create new purchase history and add to list
+            Purchase memory newPurchase = Purchase(
+                id, // listing id
+                expiry, // expiry date of access
+                generateRandomOTP() // OTP to access DB
+            );
+            purchases[msg.sender].push(newPurchase);
+            purchase = newPurchase;
+        }
+
+        /****************fund transfer*/
+        //TODO: fund transfer after adding in token contract
+
+        // return OTP
+        return purchase.otp;
+    }
+
+    function checkIsOwner(address user) public view returns(bool) {
+        return user == owner;
     }
 }
