@@ -33,6 +33,7 @@ contract Organization {
     }
 
     function addNewOrganisation(address userAddress, OrganizationType organizationType, string location, string organizationName, address verifiedBy) public {
+        
         profile memory newOrganization = profile(
             organizationType, 
             location, 
@@ -52,7 +53,7 @@ contract Organization {
     // Helper function to remove from veririfedList
     function helper_removefromlist(address userAddress) internal returns (uint256) {
         uint256 index; 
-        for (address i = 0; i < verifiedUsers.length; i++) {
+        for (uint256 i = 0; i < verifiedUsers.length; i++) {
             if (verifiedUsers[i] == userAddress) {
                 index = i;
             }
@@ -65,14 +66,18 @@ contract Organization {
         verifiedUsers.pop();        
     }
 
-    // function addNewMedicalRecord(uint256 filePointer, address patientAddress, uint256 fileBytes) public {
+    function addNewMedicalRecord(uint256 filePointer, address patientAddress, uint256 fileBytes) public {
+        require(msg.sender in verifiedUsers, "Only existing verified organization can do this.");
+        // check if patient is legit patient address (check if it has a profile)
+        if (patientContract.verifyIsPatient(patientAddress)) {
+            // create new Medical Record
+            MedicalRecord mr = new MedicalRecord(); 
+            mr memory newmedicalrecord = mr(
+                // TODO: update the MR contructor
+            );
 
-    //     MedicalRecord mr = new MedicalRecord(); 
-    //     mr memory newmedicalrecord = mr(
-    //         // TODO: update the MR contructor
-    //     );
-
-    // }        
+        };
+    }        
 
 
     function checkIsVerifiedOrganization(address userAddress) public {
