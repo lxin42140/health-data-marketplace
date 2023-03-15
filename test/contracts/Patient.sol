@@ -54,4 +54,8 @@ contract Patient {
         require(marketPlace.checkIsOwner(msg.sender), "Only marketplace owner can add marketplace");
         marketPlace = marketAddress;
     }
+
+    function iAmPatient() public pure returns(bool isIndeed) {
+        return true;
+    }
 }

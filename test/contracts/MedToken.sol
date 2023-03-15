@@ -12,15 +12,19 @@ contract MedToken {
         owner = msg.sender;
     }
 
+    /**
+     * Check if caller is patient, organisation or marketplace
+     */
     modifier authorizedOnly() {
-        bool isAllowed = false;
-
-        //TODO: check if is patient
-        //or is organisation
-        //or is marketplace
-
-        require(isAllowed, "Not allowed to mint token!");
-
+        // There does not seem to be an explicit way to check if msg.sender is of
+        // a specific contract type.
+        // Doing a workaround by calling a function that is specific to the contract
+        require(
+            msg.sender.iAmPatient() ||
+                msg.sender.iAmOrganization() || //TODO: Add functions to organisation and marketplace once merged
+                msg.sender.iAmMarketPlace(),
+            "Not allowed to mint token!"
+        );
         _;
     }
 
@@ -30,10 +34,11 @@ contract MedToken {
      * @param weiAmt uint256 amount indicating the amount of wei that was passed
      * @return A uint256 representing the amount of DT bought by the msg.sender.
      */
-    function getCredit(
-        address recipient,
-        uint256 weiAmt
-    ) public authorizedOnly returns (uint256) {
+    function getCredit(address recipient, uint256 weiAmt)
+        public
+        authorizedOnly
+        returns (uint256)
+    {
         uint256 amt = weiAmt / (1000000000000000000 / 100); // Convert weiAmt to MT
         erc20Contract.mint(recipient, amt);
         return amt;
