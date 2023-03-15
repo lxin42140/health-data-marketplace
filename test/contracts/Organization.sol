@@ -39,7 +39,6 @@ contract Organization {
     constructor(address marketplace, address patient) public {
         marketplaceInstance = Marketplace(marketplace);
         patientInstance = Patient(patient);
-        profileId = 1;
         //TODO: hardcode some values to the organizationProfileMap
         // organizationProfileMap[address(this)] = Profile(
         //     OrganizationType.Hospital,
