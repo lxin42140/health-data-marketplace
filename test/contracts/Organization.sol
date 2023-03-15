@@ -1,91 +1,138 @@
-pragma solidity >=0.4.22 <0.7.0;
-import "./Marketplace";
+pragma solidity ^0.5.0;
+import "./Marketplace.sol";
 import "./Patient.sol";
 import "./MedicalRecord.sol";
 
 contract Organization {
-
-    
-    // Attributes
-    struct profile {
-        OrganizationType organizationType; 
-        string location;
-        string organizationName;
-        address verifiedBy; // the address of user that verified this organization
-    }    
-
+    /** CONSTANTS */
     enum OrganizationType {
         Hospital,
-        Research, 
-        Pharmacy 
+        Research,
+        Pharmacy
     }
 
-    address[] verifiedUsers; // predefined list of verified organization
-    address marketPlace;
-    mapping(address => profile) public organizationProfileMap;
-
-    Patient patientContract;
-    MedicalRecord medicalRecordContract;
-    
-
-    function addNewPatient(address userAddress, address patientAddress, uint8 age, string memory gender, string memory country) public {
-        patientContract.addUserAsPatient( patientAddress,  age, gender,country); 
+    /** STRUCTS */
+    struct Profile {
+        uint256 profileId;
+        address verifiedBy; // the address of org that verified this organization
+        OrganizationType organizationType;
+        string location;
+        string organizationName;
     }
 
-    function addNewOrganisation(address userAddress, OrganizationType organizationType, string location, string organizationName, address verifiedBy) public {
-        
-        profile memory newOrganization = profile(
-            organizationType, 
-            location, 
-            organizationName, 
-            verifiedBy
-        ); 
-        organizationProfileMap[userAddress] = newOrganization; 
-    }    
+    /** PROPERTIES */
+    uint256 profileId;
+    Marketplace marketplaceInstance;
+    Patient patientInstance;
+    mapping(address => Profile) organizationProfileMap;
 
-    function removeOrganization(address userAddress) public {
-        require(msg.sender == organizationProfileMap[userAddress].verifiedBy, "Caller not eligible to remove organization.");
- 
-        delete organizationProfileMap[userAddress];
-        helper_removefromlist( serAddress);
-    }        
+    /** EVENTS */
+    event PatientAdded(address addedBy, address newPatientAddress);
+    event OrganizationAdded(address addedBy, address newOrgAddress);
+    event OrganizationRemoved(address removedBy, address deletedOrgAddress);
+    event MedicalRecordAdded(
+        address addedBy,
+        address patient,
+        string filePointer
+    );
 
-    // Helper function to remove from veririfedList
-    function helper_removefromlist(address userAddress) internal returns (uint256) {
-        uint256 index; 
-        for (uint256 i = 0; i < verifiedUsers.length; i++) {
-            if (verifiedUsers[i] == userAddress) {
-                index = i;
-            }
-        }
-        revert("No such organization.");
-        for (uint256 i = index; i < verifiedUsers.length - 1; i++) {
-            verifiedUsers[i] = verifiedUsers[i + 1];
-        }
-
-        verifiedUsers.pop();        
+    constructor(address marketplace, address patient) public {
+        marketplaceInstance = Marketplace(marketplace);
+        patientInstance = Patient(patient);
+        profileId = 1;
+        //TODO: hardcode some values to the organizationProfileMap
+        // organizationProfileMap[address(this)] = Profile(
+        //     OrganizationType.Hospital,
+        //     "Singapore",
+        //     "NUH",
+        //     address(0)
+        // );
     }
 
-    function addNewMedicalRecord(uint256 filePointer, address patientAddress, uint256 fileBytes) public {
-        require(msg.sender in verifiedUsers, "Only existing verified organization can do this.");
-        // check if patient is legit patient address (check if it has a profile)
-        if (patientContract.verifyIsPatient(patientAddress)) {
-            // create new Medical Record
-            MedicalRecord mr = new MedicalRecord(); 
-            mr memory newmedicalrecord = mr(
-                // TODO: update the MR contructor
-            );
+    /********************MODIFIERS *****/
+    modifier verifiedOnly() {
+        require(
+            organizationProfileMap[msg.sender].profileId > 0,
+            "Only verified organization can perform this action!"
+        );
 
-        };
-    }        
+        _;
+    }
 
+    modifier patientOnly(address user) {
+        //TODO: check that msg.sender is in patient smart contract
 
-    function checkIsVerifiedOrganization(address userAddress) public {
-        for (address i = 0; i < verifiedUsers.length; i++) {
-            if (verifiedUsers[i] == userAddress) {
-                return true;
-            }
-        }        
-    }   
+        _;
+    }
 
+    /********************APIs *****/
+    function addNewPatient(
+        address patientAddress,
+        uint8 age,
+        string memory gender,
+        string memory country
+    ) public verifiedOnly {
+        patientInstance.addUserAsPatient(patientAddress, age, gender, country);
+
+        emit PatientAdded(msg.sender, patientAddress);
+    }
+
+    function addNewOrganisation(
+        address newOrg,
+        OrganizationType organizationType,
+        string location,
+        string organizationName
+    ) public verifiedOnly {
+        // check if new org already is verified
+        require(
+            organizationProfileMap[newOrg].profileId == 0,
+            "Organization already added!"
+        );
+
+        // incre id
+        profileId++;
+
+        // create profile
+        Profile memory newProfile = Profile(
+            profileId,
+            msg.sender, //verified by
+            organizationType,
+            location,
+            organizationName
+        );
+
+        organizationProfileMap[newOrg] = newProfile;
+
+        emit OrganizationAdded(msg.sender, userAddress);
+    }
+
+    function removeOrganization(address orgAddress) public verifiedOnly {
+        require(
+            organizationProfileMap[orgAddress].profileId > 0,
+            "User to delete is not verified organization!"
+        );
+
+        require(
+            msg.sender == organizationProfileMap[orgAddress].verifiedBy,
+            "Caller not eligible to remove organization!"
+        );
+
+        delete organizationProfileMap[orgAddress];
+
+        emit OrganizationRemoved(msg.sender, orgAddress);
+    }
+
+    function addNewMedicalRecord(
+        uint256 filePointer,
+        address patientAddress
+    ) public verifiedOnly patientOnly(patientAddress) {
+        // TODO: call patient API to make add medical record
+
+        emit MedicalRecordAdded(msg.sender, patientAddress, filePointer);
+    }
+
+    // returns true if the user is a verified organization
+    function isVerifiedOrganization(address userAddress) public {
+        return organizationProfileMap[msg.sender].profileId > 0;
+    }
 }
