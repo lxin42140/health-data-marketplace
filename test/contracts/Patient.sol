@@ -62,4 +62,7 @@ contract Patient {
         return true; 
     }    
     
+    function iAmPatient() public pure returns(bool isIndeed) {
+        return true;
+    }
 }
