@@ -58,8 +58,12 @@ contract Organization {
         _;
     }
 
-    modifier patientOnly(address user) {
-        //TODO: check that msg.sender is in patient smart contract
+    modifier patientOnly() {
+        // can make check less strict by just checking patientAddress != address(0)
+        require(
+            patientInstance.profileMap[msg.sender].patientAddress == msg.sender,
+            "Only patients can perform this action!"
+        );
 
         _;
     }
@@ -132,10 +136,13 @@ contract Organization {
     }
 
     function addNewMedicalRecord(
-        uint256 filePointer,
-        address patientAddress
-    ) public verifiedOnly patientOnly(patientAddress) {
-        // TODO: call patient API to make add medical record
+        address patientAddress,
+        address medicalRecordAddress
+    ) public verifiedOnly {
+        patientInstance.addNewMedicalRecord(
+            patientAddress,
+            medicalRecordAddress
+        );
 
         emit MedicalRecordAdded(msg.sender, patientAddress, filePointer);
     }
@@ -150,5 +157,4 @@ contract Organization {
     ) public marketplaceOnly returns (Profile memory) {
         return organizationProfileMap[org];
     }
-
 }
