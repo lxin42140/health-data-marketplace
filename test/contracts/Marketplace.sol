@@ -61,12 +61,12 @@ contract Marketplace {
     constructor(uint256 marketFee, uint256 orgFee) public {
         marketCommissionRate = marketFee;
         orgCommissionRate = orgFee;
-        // no dependency
-        medTokenInstance = new MedToken();
         // depends on marketplace
         patientInstance = new Patient(address(this));
         // depends on marketplace and patient
         orgInstance = new Organization(address(this), address(patientInstance));
+        // depends on all
+        medTokenInstance = new MedToken(address(this), address(patientInstance), address(orgInstance));
     }
 
     /********************MODIFIERS *****/
