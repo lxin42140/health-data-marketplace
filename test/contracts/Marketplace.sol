@@ -15,8 +15,7 @@ contract Marketplace {
         uint256 price;
         // TODO: need to wait for medical record to add the enum
         string recordType;
-        // TODO: need to wait until org add the enum
-        string allowOrganizationTypes;
+        Organization.OrganizationType[] allowOrganizationTypes;
         uint256 expirationDate;
     }
 
@@ -33,8 +32,11 @@ contract Marketplace {
     }
 
     /** PROPERTIES */
+    Organization public orgInstance;
+    Patient public patientInstance;
+    MedToken public medTokenInstance;
     // owner of marketplace
-    address owner;
+    address public owner = msg.sender;
     // commission of marketplace e.g. 10 == 10%
     uint256 public marketCommissionRate;
     uint256 public orgCommissionRate;
@@ -47,7 +49,7 @@ contract Marketplace {
 
     /** EVENTS */
     event ListingAdded(address seller, uint256 listingId); // event of adding a listing
-    event ListingRemoved(uint256 listingId, String description); // event of removing a listing
+    event ListingRemoved(uint256 listingId, string description); // event of removing a listing
     event ListingPurchased(
         address buyer,
         uint256 listingId,
@@ -57,9 +59,14 @@ contract Marketplace {
     ); // event of purchasing a listing access
 
     constructor(uint256 marketFee, uint256 orgFee) public {
-        owner = msg.sender;
-        comissionFee = fee;
-        listingId = 1;
+        marketCommissionRate = marketFee;
+        orgCommissionRate = orgFee;
+        // no dependency
+        medTokenInstance = new MedToken();
+        // depends on marketplace
+        patientInstance = new Patient(address(this));
+        // depends on marketplace and patient
+        orgInstance = new Organization(address(this), address(patientInstance));
     }
 
     /********************MODIFIERS *****/
@@ -70,14 +77,17 @@ contract Marketplace {
         _;
     }
 
-    modifier patientOnly() {
-        //TODO: check that msg.sender is in patient smart contract
+    modifier organisationOnly() {
+        require(
+            orgInstance.isVerifiedOrganization(msg.sender),
+            "Verified organization only!"
+        );
 
         _;
     }
 
-    modifier organisationOnly() {
-        //TODO: check that msg.sender is in organisation smart contract
+    modifier patientOnly() {
+        //TODO: check that msg.sender is in patient smart contract
 
         _;
     }
@@ -124,20 +134,50 @@ contract Marketplace {
         return otp;
     }
 
+    // common method to get the purchase detail given buyer address and listing id
+    function getPurchaseDetails(
+        address buyer,
+        uint256 id
+    ) private returns (Purchase memory) {
+        Purchase[] memory orgPurchaseHistory = purchases[buyer];
+        uint256 index = -1;
+
+        // find the purchase
+        for (uint i = 0; i < orgPurchaseHistory.length; i++) {
+            if (orgPurchaseHistory[i].listing.id == id) {
+                index = i;
+                break;
+            }
+        }
+
+        // check if org has purchased the listing
+        require(index > 0, "Did not purchase the listing!");
+
+        Purchase memory purchase = orgPurchaseHistory[index];
+
+        // check if accesss has expired
+        require(!isExpired(purchase.expirationDate), "Purchase has expired!");
+
+        address patient = purchase.listing.listingOwner;
+        //TODO: get matching medical record addresses from patients
+
+        return purchase;
+    }
+
     /********************APIS *****/
 
-    function checkIsOwner(address user) public view returns (bool) {
+    function isOwner(address user) public view returns (bool) {
         return user == owner;
     }
 
     function addListing(
         uint256 price,
         string memory recordTypes,
-        string memory allowOrganizationTypes,
+        Organization.OrganizationType[] allowOrganizationTypes,
         uint256 daysTillExpiry
     )
         public
-        patientOnly
+        patientOnly(msg.sender)
         hasRecordsOnly(recordTypes)
         removeExpiredListing
         returns (Listing memory)
@@ -181,7 +221,7 @@ contract Marketplace {
 
         delete listingMap[id];
 
-        emit ListingRemoved(id, "Remove by owner");
+        emit ListingRemoved(id, "Remove by owner!");
 
         return listing;
     }
@@ -201,23 +241,38 @@ contract Marketplace {
         // must purchase for at least 30 days
         require(daysToPurchase > 30, "Invalid purchase duration! Min 30 days");
 
-        // Only verified buyers can buy
+        // only verified buyers can buy
         require(
-            Organization.checkIsVerifiedOrganization(msg.sender),
+            orgInstance.isVerifiedOrganization(msg.sender),
             "Only verified organizations can buy listing!"
         );
 
-        Listing listing = listingMap[id];
+        Listing memory listing = listingMap[id];
 
-        if (listing.allowOrganizationTypes) {
-            // TODO: check if buyer is allowed to purchase listing
+        // only allowed organizations can purchase
+        if (listing.allowOrganizationTypes.length > 0) {
+            Organization.Profile memory orgProfile = orgInstance.getOrgProfile(
+                msg.sender
+            );
+
+            bool isAllowed = false;
+
+            for (uint256 i = 0; i < listing.allowOrganizationTypes.length; i++) {
+                if (listing.allowOrganizationTypes[i] == orgProfile.organizationType
+                ) {
+                    isAllowed = true;
+                    break;
+                }
+            }
+
+            require(isAllowed, "Organization is banned by listing owner!");
         }
 
         // check if buyer has enough tokens to pay
         // for now, default to charge by per day
         uint256 totalPrice = listing.price * daysToPurchase;
         require(
-            MedToken.checkCredit(msg.sender) >= totalPrice,
+            medTokenInstance.checkCredit(msg.sender) >= totalPrice,
             "Insufficient tokens!"
         );
 
@@ -269,8 +324,8 @@ contract Marketplace {
         address patient = listing.listingOwner;
         //TODO: get issued by of patient
 
-        MedToken.transferCredit(address(this), marketCommission);
-        MedToken.transferCredit(listing.listingOwner, sellerEarning);
+        medTokenInstance.transferCredit(address(this), marketCommission);
+        medTokenInstance.transferCredit(listing.listingOwner, sellerEarning);
         //TODO: transfer credit to the org that added the user
 
         emit ListingPurchased(
@@ -284,32 +339,20 @@ contract Marketplace {
         return purchases[msg.sender][index];
     }
 
-    function getPurchaseDetails(
+    // for the market to get purchase details of all buyers
+    // for DB layer
+    function marketGetPurchaseDetails(
+        address org,
+        uint256 id
+    ) public ownerOnly returns (Purchase memory) {
+        return getPurchaseDetails(org, id);
+    }
+
+    // for individual organisation to get their purchase details
+    function buyerGetPurchaseDetails(
         uint256 id
     ) public organisationOnly removeExpiredListing returns (Purchase memory) {
-        Purchase[] memory orgPurchaseHistory = purchases[msg.sender];
-        uint256 index = -1;
-
-        // find the purchase
-        for (uint i = 0; i < orgPurchaseHistory.length; i++) {
-            if (orgPurchaseHistory[i].listing.id == id) {
-                index = i;
-                break;
-            }
-        }
-
-        // check if org has purchased the listing
-        require(index > 0, "Did not purchase the listing!");
-
-        Purchase memory purchase = orgPurchaseHistory[index];
-
-        // check if accesss has expired
-        require(!isExpired(purchase.expirationDate), "Purchase has expired!");
-
-        address patient = purchase.listing.listingOwner;
-        //TODO: get matching medical record addresses from patients
-
-        return purchase;
+        return getPurchaseDetails(msg.sender, id);
     }
 
     function searchListings(

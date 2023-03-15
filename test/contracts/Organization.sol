@@ -65,7 +65,17 @@ contract Organization {
         _;
     }
 
+    modifier marketplaceOnly() {
+        require(
+            msg.sender == marketplaceInstance,
+            "Only marketplace can only this!"
+        );
+
+        _;
+    }
+
     /********************APIs *****/
+
     function addNewPatient(
         address patientAddress,
         uint8 age,
@@ -135,4 +145,11 @@ contract Organization {
     function isVerifiedOrganization(address userAddress) public {
         return organizationProfileMap[msg.sender].profileId > 0;
     }
+
+    function getOrgProfile(
+        address org
+    ) public marketplaceOnly returns (Profile memory) {
+        return organizationProfileMap[org];
+    }
+
 }
