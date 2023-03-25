@@ -61,8 +61,4 @@ contract Patient {
         require(profileMap[patientAddress] != profile(), "No such patient found in the system");
         return true; 
     }    
-    
-    function iAmPatient() public pure returns(bool isIndeed) {
-        return true;
-    }
-}
+   
