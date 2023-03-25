@@ -2,6 +2,7 @@ pragma solidity ^0.5.0;
 import "./Organization.sol";
 import "./Patient.sol";
 import "./MedToken.sol";
+import "./MedicalRecord.sol";
 
 contract Marketplace {
     /** CONSTANTS */
@@ -61,40 +62,39 @@ contract Marketplace {
     constructor(uint256 marketFee, uint256 orgFee) public {
         marketCommissionRate = marketFee;
         orgCommissionRate = orgFee;
-        // depends on marketplace
-        patientInstance = new Patient(address(this));
-        // depends on marketplace and patient
-        orgInstance = new Organization(address(this), address(patientInstance));
-        // depends on all
-        medTokenInstance = new MedToken(address(this), address(patientInstance), address(orgInstance));
+
+        patientInstance = new Patient();
+        orgInstance = new Organization();
+
+        //MedToken depends on marketplace, patient and organization
+        medTokenInstance = new MedToken(patientInstance, orgInstance);
+
+        // Organization depends on marketplace and patient
+        orgInstance.setPatientInstance(address(patientInstance));
+
+        // Patient depends on marketplace and organization
+        patientInstance.setOrgInstance(address(orgInstance));
     }
 
     /********************MODIFIERS *****/
 
     modifier ownerOnly() {
-        require(msg.sender == owner, "Only owner can perform this action!");
+        require(msg.sender == owner, "Only only!");
 
         _;
     }
 
-    modifier organisationOnly() {
+    modifier organisationOnly(address organization) {
         require(
-            orgInstance.isVerifiedOrganization(msg.sender),
+            orgInstance.isVerifiedOrganization(organization),
             "Verified organization only!"
         );
 
         _;
     }
 
-    modifier patientOnly() {
-        //TODO: check that msg.sender is in patient smart contract
-
-        _;
-    }
-
-    modifier hasRecordsOnly(string memory recordTypes) {
-        // TODO: check that msg.sender has at least one medical records with the provided type, or if none provided
-        // at least one record in general
+    modifier patientOnly(address patient) {
+        require(patientInstance.isPatient(patient), "Patient only!");
 
         _;
     }
@@ -170,15 +170,19 @@ contract Marketplace {
         return user == owner;
     }
 
+    function isMarketplace(address user) public view returns (bool) {
+        return user == address(this);
+    }
+
     function addListing(
         uint256 price,
+        //FIXME: check check record type
         string memory recordTypes,
-        Organization.OrganizationType[] allowOrganizationTypes,
+        Organization.OrganizationType[] memory allowOrganizationTypes,
         uint256 daysTillExpiry
     )
         public
         patientOnly(msg.sender)
-        hasRecordsOnly(recordTypes)
         removeExpiredListing
         returns (Listing memory)
     {
@@ -231,7 +235,7 @@ contract Marketplace {
         uint256 daysToPurchase
     )
         public
-        organisationOnly
+        organisationOnly(msg.sender)
         removeExpiredListing
         validListingOnly(id)
         returns (Purchase memory)
@@ -257,8 +261,14 @@ contract Marketplace {
 
             bool isAllowed = false;
 
-            for (uint256 i = 0; i < listing.allowOrganizationTypes.length; i++) {
-                if (listing.allowOrganizationTypes[i] == orgProfile.organizationType
+            for (
+                uint256 i = 0;
+                i < listing.allowOrganizationTypes.length;
+                i++
+            ) {
+                if (
+                    listing.allowOrganizationTypes[i] ==
+                    orgProfile.organizationType
                 ) {
                     isAllowed = true;
                     break;
@@ -318,7 +328,7 @@ contract Marketplace {
         /**************FUND TRANSFER******/
 
         uint256 marketCommission = (totalPrice / 100) * marketCommissionRate;
-        uint256 orgComission = (totalPrice / 100) * orgComission;
+        uint256 orgComission = (totalPrice / 100) * orgCommissionRate;
         uint256 sellerEarning = totalPrice - marketCommission - orgComission;
 
         address patient = listing.listingOwner;
@@ -331,8 +341,8 @@ contract Marketplace {
         emit ListingPurchased(
             msg.sender,
             id,
-            purchase.accessStartDate,
-            purchase.expirationDate,
+            existingPurchases[index].accessStartDate,
+            existingPurchases[index].expirationDate,
             totalPrice
         );
 
@@ -351,18 +361,23 @@ contract Marketplace {
     // for individual organisation to get their purchase details
     function buyerGetPurchaseDetails(
         uint256 id
-    ) public organisationOnly removeExpiredListing returns (Purchase memory) {
+    )
+        public
+        organisationOnly(msg.sender)
+        removeExpiredListing
+        returns (Purchase memory)
+    {
         return getPurchaseDetails(msg.sender, id);
     }
 
     function searchListings(
-        uin256 age,
+        uint8 age,
         string memory gender,
         string memory country,
         string memory medicalRecordType
     )
         public
-        organisationOnly
+        organisationOnly(msg.sender)
         removeExpiredListing
         returns (QueryResponse memory)
     {

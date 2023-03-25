@@ -22,8 +22,8 @@ contract Organization {
 
     /** PROPERTIES */
     uint256 profileId;
-    Marketplace marketplaceInstance;
-    Patient patientInstance;
+    Marketplace public marketplaceInstance;
+    Patient public patientInstance;
     mapping(address => Profile) organizationProfileMap;
 
     /** EVENTS */
@@ -36,48 +36,47 @@ contract Organization {
         string filePointer
     );
 
-    constructor(address marketplace, address patient) public {
-        marketplaceInstance = Marketplace(marketplace);
-        patientInstance = Patient(patient);
-        //TODO: hardcode some values to the organizationProfileMap
-        // organizationProfileMap[address(this)] = Profile(
-        //     OrganizationType.Hospital,
-        //     "Singapore",
-        //     "NUH",
-        //     address(0)
-        // );
+    constructor() public {
+        marketplaceInstance = Marketplace(msg.sender);
+        profileId++;
+        organizationProfileMap[address(this)] = Profile(
+            profileId,
+            address(0),
+            OrganizationType.Hospital,
+            "Singapore",
+            "NUH"
+        );
     }
 
     /********************MODIFIERS *****/
     modifier verifiedOnly() {
         require(
             organizationProfileMap[msg.sender].profileId > 0,
-            "Only verified organization can perform this action!"
+            "Verified organization only!"
         );
 
         _;
     }
 
-    modifier patientOnly() {
-        // can make check less strict by just checking patientAddress != address(0)
-        require(
-            patientInstance.profileMap[msg.sender].patientAddress == msg.sender,
-            "Only patients can perform this action!"
-        );
+    modifier patientOnly(address patient) {
+        require(patientInstance.isPatient(patient), "Patient only!");
 
         _;
     }
 
-    modifier marketplaceOnly() {
-        require(
-            msg.sender == marketplaceInstance,
-            "Only marketplace can only this!"
-        );
+    modifier marketplaceOnly(address marketplace) {
+        require(marketplace == marketplaceInstance, "Marketplace only!");
 
         _;
     }
 
     /********************APIs *****/
+
+    function setPatientInstance(
+        address newPatientInstance
+    ) public marketplaceOnly(msg.sender) {
+        patientInstance = Patient(newPatientInstance);
+    }
 
     function addNewPatient(
         address patientAddress,
@@ -93,8 +92,8 @@ contract Organization {
     function addNewOrganisation(
         address newOrg,
         OrganizationType organizationType,
-        string location,
-        string organizationName
+        string memory location,
+        string memory organizationName
     ) public verifiedOnly {
         // check if new org already is verified
         require(
@@ -116,7 +115,7 @@ contract Organization {
 
         organizationProfileMap[newOrg] = newProfile;
 
-        emit OrganizationAdded(msg.sender, userAddress);
+        emit OrganizationAdded(msg.sender, newOrg);
     }
 
     function removeOrganization(address orgAddress) public verifiedOnly {
@@ -135,16 +134,14 @@ contract Organization {
         emit OrganizationRemoved(msg.sender, orgAddress);
     }
 
-    function addNewMedicalRecord(
-        address patientAddress,
-        address medicalRecordAddress
-    ) public verifiedOnly {
-        patientInstance.addNewMedicalRecord(
-            patientAddress,
-            medicalRecordAddress
-        );
+    function addNewMedicalRecord(address patientAddress) public verifiedOnly {
+        //FIXME: need to create medical record, and passed address of created record
+        // patientInstance.addNewMedicalRecord(
+        //     patientAddress,
+        //     medicalRecordAddress
+        // );
 
-        emit MedicalRecordAdded(msg.sender, patientAddress, filePointer);
+        // emit MedicalRecordAdded(msg.sender, patientAddress, filePointer);
     }
 
     // returns true if the user is a verified organization
@@ -154,7 +151,7 @@ contract Organization {
 
     function getOrgProfile(
         address org
-    ) public marketplaceOnly returns (Profile memory) {
+    ) public marketplaceOnly(msg.sneder) returns (Profile memory) {
         return organizationProfileMap[org];
     }
 }

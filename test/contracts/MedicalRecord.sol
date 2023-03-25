@@ -1,78 +1,124 @@
 pragma solidity ^0.5.0;
+import "./Marketplace.sol";
+import "./Patient.sol";
 import "./Organization.sol";
-import "./MedicalRecord.sol";
 
 contract MedicalRecord {
+    /** CONSTANTS */
+    enum MedicalRecordType {
+        Prescription,
+        Diagnoses,
+        Procedure,
+        Test,
+        TreatmentPlan
+    }
 
-    enum Type {
-        Prescription, 
-        Diagnoses, 
-        Procedure, 
-        Test, 
-        TreatmentPlan 
-        }
-
-    struct medicalRecord {
-        Type medicalRecordType;
+    /** STRUCTS */
+    struct Metadata {
+        MedicalRecordType medicalRecordType;
         uint dateCreated;
         address issuedBy; //organizationAddress
         address owner; //ownerAddress
-        string fileHash;
-        string filePointer;
+        string filePointer; //URI of file
     }
 
-    address marketPlace;
-    bool contractStopped;
-    bool isValid;
-    Organization organizationContract;
+    /** PROPERTIES */
+    Marketplace public marketplaceInstance;
+    Patient public patientInstance;
+    Organization public orgInstance;
+    Metadata metadata;
 
-    function addNewMedRecord(Type typeOfRecord, string memory filePointer, bytes memory file, address issuer, address owner, address marketPlace) public returns(address){
-        require(organizationContract.checkIsVerifiedOrganization(msg.sender), "Only verified organizations can add user");
-        string newFileHash = abi.encode(file);
-        
-        //how to check if the fileHash is the same
+    /** SWITCH */
+    bool public contractStopped;
+    bool public isValid;
 
-       medicalRecord medRec = medicalRecord(
-        typeOfRecord,
-        block.timestamp,
-        issuer,
-        owner,
-        newFileHash
-        //needsThePointer
-       );
+    /** EVENTS */
+    event MedicalRecordAdded(address newMedicalRecord);
+    event ContractStopped();
+    event ContractResumed();
+    event RecordInvalidated();
+    event RecordValidated();
+
+    constructor(
+        MedicalRecordType typeOfRecord,
+        uint dateCreated,
+        address issuedBy,
+        address owner,
+        string memory uri,
+        address marketplace,
+        address patient,
+        address org
+    ) public {
+        metadata = Metadata(typeOfRecord, dateCreated, issuedBy, owner, uri);
+
+        marketplaceInstance = Marketplace(marketplaceInstance);
+        orgInstance = Organization(org);
+        patientInstance = Patient(patient);
     }
 
-    function checkIsIssuedBy(address organizationAddress) public returns(bool){
-        if(organizationAddress == issuedBy){
-            return true;
+    /********************MODIFIERS *****/
+    modifier marketplaceOnly() {
+        require(marketplaceInstance == msg.sender, "Marketplace only!");
+
+        _;
+    }
+
+    modifier ownerOnly() {
+        require(metadata.owner == msg.sender, "Owner only!");
+
+        _;
+    }
+
+    modifier issuedByOnly() {
+        require(
+            metadata.issuedBy == msg.sender,
+            "Organization that issued the record only!"
+        );
+
+        _;
+    }
+
+    /********************APIS *****/
+
+    function checkIsIssuedBy(
+        address organizationAddress
+    ) public returns (bool) {
+        require(
+            msg.sender == marketplaceInstance || msg.sender == metadata.owner,
+            "Marketplace and owner only!"
+        );
+
+        return organizationAddress == metadata.issuedBy;
+    }
+
+    function toggleContractStopped() public ownerOnly {
+        contractStopped = !contractStopped;
+
+        if (contractStopped) {
+            emit ContractStopped();
         } else {
-            return false;
+            emit ContractResumed();
         }
     }
 
-    function checkIsValid() public returns(bool){
-        return isValid;
-    }
-
-    function checkIsContractStopped() public returns(bool) {
-        return contractStopped;
-    }
-
-    function toggleContractStopped() public returns(bool){
-        requires(msg.sender == owner, "only owner of medical record can toggle start/stop of contract");
-        contractStopped = !contractStopped;
-        return contractStopped;
-    }
-
-    function toggleValidity() public returns(bool) {
-        require(msg.sender == issuedBy, "only issuer of medical record can toggle validity");
+    function toggleValidity() public issuedByOnly {
         isValid = !isValid;
-        return isValid;
+
+        if (isValid) {
+            emit RecordValidated();
+        } else {
+            emit RecordInvalidated();
+        }
     }
 
-    function getRecordMetadata() public returns(bytes) {
-        requires(msg.sender == owner || msg.sender == marketplace);
-        return abi.decode(fileHash);
-    }
+    function getRecordMetadata() public returns (Metadata memory) {
+        require(
+            msg.sender == marketplaceInstance ||
+                msg.sender == metadata.owner ||
+                metadata.issuedBy == msg.sender,
+            "Marketplace, owner and organization that issued the record only!"
+        );
 
+        return metadata;
+    }
 }
