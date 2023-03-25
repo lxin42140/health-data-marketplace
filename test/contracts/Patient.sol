@@ -55,7 +55,10 @@ contract Patient {
         marketPlace = marketAddress;
     }
 
-    function iAmPatient() public pure returns(bool isIndeed) {
-        return true;
-    }
-}
+    // Ensures that Patient is already added into contract, before verifying
+    // Used in Organization
+    function verifyIsPatient(address patientAddress) public {
+        require(profileMap[patientAddress] != profile(), "No such patient found in the system");
+        return true; 
+    }    
+   
