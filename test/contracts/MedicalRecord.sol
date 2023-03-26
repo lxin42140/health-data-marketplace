@@ -1,4 +1,4 @@
-pragma solidity ^0.5.0;
+pragma solidity ^0.8.0;
 import "./Marketplace.sol";
 import "./Patient.sol";
 import "./Organization.sol";
@@ -58,7 +58,7 @@ contract MedicalRecord {
 
     /********************MODIFIERS *****/
     modifier marketplaceOnly() {
-        require(marketplaceInstance == msg.sender, "Marketplace only!");
+        require(address(marketplaceInstance) == msg.sender, "Marketplace only!");
 
         _;
     }
@@ -84,7 +84,7 @@ contract MedicalRecord {
         address organizationAddress
     ) public returns (bool) {
         require(
-            msg.sender == marketplaceInstance || msg.sender == metadata.owner,
+            msg.sender == address(marketplaceInstance) || msg.sender == metadata.owner,
             "Marketplace and owner only!"
         );
 
@@ -113,7 +113,7 @@ contract MedicalRecord {
 
     function getRecordMetadata() public returns (Metadata memory) {
         require(
-            msg.sender == marketplaceInstance ||
+            msg.sender == address(marketplaceInstance) ||
                 msg.sender == metadata.owner ||
                 metadata.issuedBy == msg.sender,
             "Marketplace, owner and organization that issued the record only!"

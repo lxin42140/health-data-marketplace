@@ -1,4 +1,4 @@
-pragma solidity ^0.5.0;
+pragma solidity ^0.8.0;
 import "./Marketplace.sol";
 import "./Patient.sol";
 import "./MedicalRecord.sol";
@@ -65,7 +65,7 @@ contract Organization {
     }
 
     modifier marketplaceOnly(address marketplace) {
-        require(marketplace == marketplaceInstance, "Marketplace only!");
+        require(marketplace == address(marketplaceInstance), "Marketplace only!");
 
         _;
     }
@@ -145,13 +145,13 @@ contract Organization {
     }
 
     // returns true if the user is a verified organization
-    function isVerifiedOrganization(address userAddress) public {
+    function isVerifiedOrganization(address userAddress) public returns (bool) {
         return organizationProfileMap[msg.sender].profileId > 0;
     }
 
     function getOrgProfile(
         address org
-    ) public marketplaceOnly(msg.sneder) returns (Profile memory) {
+    ) public marketplaceOnly(msg.sender) returns (Profile memory) {
         return organizationProfileMap[org];
     }
 }

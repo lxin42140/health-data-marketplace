@@ -1,4 +1,4 @@
-pragma solidity ^0.5.0;
+pragma solidity ^0.8.0;
 import "./Organization.sol";
 import "./Patient.sol";
 import "./MedToken.sol";
@@ -24,7 +24,7 @@ contract Marketplace {
         Listing listing; // listing snapshot
         uint256 accessStartDate;
         uint256 expirationDate;
-        string otp;
+        uint256 otp;
         address[] medicalRecordPointers;
     }
 
@@ -67,7 +67,7 @@ contract Marketplace {
         orgInstance = new Organization();
 
         //MedToken depends on marketplace, patient and organization
-        medTokenInstance = new MedToken(patientInstance, orgInstance);
+        medTokenInstance = new MedToken(address(patientInstance), address(orgInstance));
 
         // Organization depends on marketplace and patient
         orgInstance.setPatientInstance(address(patientInstance));
@@ -120,14 +120,14 @@ contract Marketplace {
     /********************UTILITY FUNCTIONS *****/
 
     // returns true if input date is earlier than block timestamp
-    function isExpired(uint256 date) private pure returns (bool) {
-        return date > 0 && now > date;
+    function isExpired(uint256 date) private view returns (bool) {
+        return date > 0 && block.timestamp > date;
     }
 
     // generate a 6 digit OTP which is used to access the DB
-    function generateRandomOTP() private pure returns (uint256) {
+    function generateRandomOTP() private view returns (uint256) {
         uint256 seed = uint256(
-            keccak256(abi.encodePacked(block.timestamp, block.difficulty))
+            keccak256(abi.encodePacked(block.timestamp, block.prevrandao))
         );
         uint256 random = uint256(keccak256(abi.encodePacked(seed)));
         uint256 otp = random % 1000000;
@@ -140,18 +140,20 @@ contract Marketplace {
         uint256 id
     ) private returns (Purchase memory) {
         Purchase[] memory orgPurchaseHistory = purchases[buyer];
-        uint256 index = -1;
+        uint index = 0;
+        bool purchaseExists = false;
 
         // find the purchase
         for (uint i = 0; i < orgPurchaseHistory.length; i++) {
             if (orgPurchaseHistory[i].listing.id == id) {
                 index = i;
+                purchaseExists = true;
                 break;
             }
         }
 
         // check if org has purchased the listing
-        require(index > 0, "Did not purchase the listing!");
+        require(purchaseExists, "Did not purchase the listing!");
 
         Purchase memory purchase = orgPurchaseHistory[index];
 
@@ -189,7 +191,7 @@ contract Marketplace {
         // determine expiry, if any
         uint256 expiry = 0;
         if (daysTillExpiry > 0) {
-            expiry = now + daysTillExpiry * SECONDS_IN_DAYS;
+            expiry = block.timestamp + daysTillExpiry * SECONDS_IN_DAYS;
         }
 
         // incre id
@@ -290,15 +292,18 @@ contract Marketplace {
 
         // find existing purchase associated with the same listing
         Purchase[] memory existingPurchases = purchases[msg.sender];
-        uint256 index = -1;
+        uint256 index = 0;
+        bool purchaseExists = false;
+
         for (uint i = 0; i < existingPurchases.length; i++) {
-            if (existingPurchases[i].listingId == id) {
+            if (existingPurchases[i].listing.id == id) {
                 index = i;
+                purchaseExists = true;
                 break;
             }
         }
 
-        if (index > 0) {
+        if (purchaseExists) {
             // if access is not expired, prevent buyer from purchasing again
             require(
                 isExpired(existingPurchases[index].expirationDate),
@@ -306,18 +311,21 @@ contract Marketplace {
             );
 
             // if listing has expired, update the purchase details
-            existingPurchases[index].accessStartDate = now;
+            existingPurchases[index].accessStartDate = block.timestamp;
             existingPurchases[index].expirationDate =
-                now +
+                block.timestamp +
                 (daysToPurchase * SECONDS_IN_DAYS);
             existingPurchases[index].otp = generateRandomOTP();
         } else {
             // create new purchase history and add to list
+            address[] memory recordAddress;
+
             Purchase memory newPurchase = Purchase(
                 listing, // struct is pass by value
-                now, // access start date
-                now + (daysToPurchase * SECONDS_IN_DAYS), // expiry date of access
-                generateRandomOTP() // OTP to access DB
+                block.timestamp, // access start date
+                block.timestamp + (daysToPurchase * SECONDS_IN_DAYS), // expiry date of access
+                generateRandomOTP(), // OTP to access DB
+                recordAddress
             );
 
             // add to purchases
@@ -381,7 +389,8 @@ contract Marketplace {
         removeExpiredListing
         returns (QueryResponse memory)
     {
-        Listing[] memory matchingListings = Listing[];
+        Listing[] memory matchingListings;
+
         for (uint i = 0; i <= listingId; i++) {
             Listing memory currListing = listingMap[i];
 

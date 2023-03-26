@@ -1,4 +1,4 @@
-pragma solidity ^0.5.0;
+pragma solidity ^0.8.0;
 import "./MedicalRecord.sol";
 import "./Organization.sol";
 import "./MedToken.sol";
@@ -19,7 +19,7 @@ contract Patient {
     Marketplace public marketplaceInstance;
     uint256 profileId;
     mapping(address => Profile) profileMap;
-    mapping(address => MedicalRecord[]) patientRecordMap; // list of medical records associated with each patient
+    mapping(address => address[]) patientRecordMap; // list of medical records associated with each patient
 
     /** EVENTS */
     event PatientProfileAdded(address addedBy, address newPatientAddress);
@@ -32,7 +32,10 @@ contract Patient {
     /********************MODIFIERS *****/
 
     modifier marketplaceOnly(address marketplace) {
-        require(marketplace == address(marketplaceInstance), "Marketplace only!");
+        require(
+            marketplace == address(marketplaceInstance),
+            "Marketplace only!"
+        );
 
         _;
     }
@@ -75,8 +78,6 @@ contract Patient {
         string memory gender,
         string memory country
     ) public organisationOnly(msg.sender) newPatientOnly(patientAddress) {
-        require(gender == "M" || gender == "F", "Gender input wrong format");
-
         profileId++;
 
         //new patient object
@@ -105,17 +106,18 @@ contract Patient {
 
     function getMedicalRecords(
         address patientAddress
-    ) public view patientOnly(patientAddress) returns (MedicalRecord[] memory) {
+    ) public view patientOnly(patientAddress) returns (address[] memory) {
         require(
-            msg.sender == marketplaceInstance ||
-                msg.sender == profileMap[patientAddress].patientAddress,
+            msg.sender == address(marketplaceInstance) ||
+                msg.sender ==
+                address(profileMap[patientAddress].patientAddress),
             "Only associatd patient or marketplace can access the personal mpedical records"
         );
 
         return patientRecordMap[patientAddress];
     }
 
-    function isPatient(address patientAddress) public {
+    function isPatient(address patientAddress) public returns (bool) {
         return profileMap[patientAddress].profileId > 0;
     }
 }
