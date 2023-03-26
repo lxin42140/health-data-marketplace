@@ -16,8 +16,10 @@ contract Patient {
     }
 
     /** PROPERTIES */
+    address public owner = msg.sender;
     Organization public orgInstance;
     Marketplace public marketplaceInstance;
+
     uint256 profileId;
     mapping(address => Profile) profileMap;
     mapping(address => MedicalRecord[]) patientRecordMap; // list of medical records associated with each patient
@@ -26,11 +28,15 @@ contract Patient {
     event PatientProfileAdded(address addedBy, address newPatientAddress);
     event MedicalRecordAdded(address patient, address medicalRecord);
 
-    constructor() {
-        marketplaceInstance = Marketplace(msg.sender);
-    }
+    constructor() {}
 
     /********************MODIFIERS *****/
+
+    modifier ownerOnly() {
+        require(msg.sender == owner, "Only only!");
+
+        _;
+    }
 
     modifier marketplaceOnly(address marketplace) {
         require(
@@ -67,10 +73,12 @@ contract Patient {
 
     /********************APIs *****/
 
-    function setOrgInstance(
-        address newOrgInstance
-    ) public marketplaceOnly(msg.sender) {
-        orgInstance = Organization(newOrgInstance);
+    function setMarketplace(address market) public ownerOnly {
+        marketplaceInstance = Marketplace(market);
+    }
+
+    function setOrganization(address org) public ownerOnly {
+        orgInstance = Organization(org);
     }
 
     function addUserAsPatient(

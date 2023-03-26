@@ -14,24 +14,13 @@ contract MedicalRecord {
         TreatmentPlan
     }
 
-    /** STRUCTS */
-    // struct Metadata {
-    //     MedicalRecordType medicalRecordType;
-    //     uint dateCreated;
-    //     address issuedBy; //organizationAddress
-    //     address owner; //ownerAddress
-    //     string filePointer; //URI of file
-    // }
-
     /** PROPERTIES */
-    Marketplace public marketplaceInstance;
-    Patient public patientInstance;
-    Organization public orgInstance;
-    // Metadata metadata;
+    address public patientInstance;
+    address public marketplaceInstance;
+    uint public dateCreated;
+    address public issuedBy;
+    address public owner;
     MedicalRecordType medicalRecordType;
-    uint dateCreated;
-    address issuedBy; //organizationAddress
-    address owner; //ownerAddress
     string filePointer; //URI of file
 
     /** SWITCH */
@@ -51,32 +40,19 @@ contract MedicalRecord {
         address issuedByOrg,
         address patient,
         string memory uri,
-        address marketplaceAddress,
-        address patientAddress,
-        address orgAddress
+        address patientContract,
+        address market
     ) {
-        // metadata = Metadata(typeOfRecord, dateCreated, issuedBy, owner, uri);
         medicalRecordType = typeOfRecord;
         dateCreated = createdDate;
         issuedBy = issuedByOrg;
         owner = patient;
         filePointer = uri;
-
-        marketplaceInstance = Marketplace(marketplaceAddress);
-        orgInstance = Organization(orgAddress);
-        patientInstance = Patient(patientAddress);
+        patientInstance = patientContract;
+        marketplaceInstance = market;
     }
 
     /********************MODIFIERS *****/
-    modifier marketplaceOnly() {
-        require(
-            address(marketplaceInstance) == msg.sender,
-            "Marketplace only!"
-        );
-
-        _;
-    }
-
     modifier ownerOnly() {
         require(owner == msg.sender, "Owner only!");
 
@@ -93,17 +69,6 @@ contract MedicalRecord {
     }
 
     /********************APIS *****/
-
-    function checkIsIssuedBy(
-        address organizationAddress
-    ) public view returns (bool) {
-        require(
-            msg.sender == address(marketplaceInstance) || msg.sender == owner,
-            "Marketplace and owner only!"
-        );
-
-        return organizationAddress == issuedBy;
-    }
 
     function toggleContractStopped() public ownerOnly {
         contractStopped = !contractStopped;
@@ -127,9 +92,8 @@ contract MedicalRecord {
 
     function getRecordType() public view returns (MedicalRecordType) {
         require(
-            msg.sender == address(marketplaceInstance) ||
-                msg.sender == address(patientInstance) ||
-                msg.sender == address(orgInstance) ||
+            msg.sender == patientInstance ||
+                msg.sender == marketplaceInstance ||
                 msg.sender == owner ||
                 msg.sender == issuedBy,
             "No permission to access the record!"
@@ -138,16 +102,15 @@ contract MedicalRecord {
         return medicalRecordType;
     }
 
-    // function getRecordMetadata() public view returns (Metadata memory) {
-    //     require(
-    //         msg.sender == address(marketplaceInstance) ||
-    //             msg.sender == address(patientInstance) ||
-    //             msg.sender == address(orgInstance) ||
-    //             msg.sender == metadata.owner ||
-    //             msg.sender == metadata.issuedBy,
-    //         "No permission to access the record!"
-    //     );
+    function getFilePointer() public view returns (string memory) {
+        require(
+            msg.sender == patientInstance ||
+                msg.sender == marketplaceInstance ||
+                msg.sender == owner ||
+                msg.sender == issuedBy,
+            "No permission to access the record!"
+        );
 
-    //     return metadata;
-    // }
+        return filePointer;
+    }
 }

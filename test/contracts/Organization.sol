@@ -22,10 +22,12 @@ contract Organization {
     }
 
     /** PROPERTIES */
-    uint256 profileId;
+    address public owner = msg.sender;
     Marketplace public marketplaceInstance;
     Patient public patientInstance;
+
     mapping(address => Profile) organizationProfileMap;
+    uint256 profileId;
 
     /** EVENTS */
     event PatientAdded(address addedBy, address newPatientAddress);
@@ -38,7 +40,6 @@ contract Organization {
     );
 
     constructor() {
-        marketplaceInstance = Marketplace(msg.sender);
         profileId++;
         organizationProfileMap[address(this)] = Profile(
             profileId,
@@ -50,17 +51,17 @@ contract Organization {
     }
 
     /********************MODIFIERS *****/
+    modifier ownerOnly() {
+        require(msg.sender == owner, "Only only!");
+
+        _;
+    }
+
     modifier verifiedOnly() {
         require(
             organizationProfileMap[msg.sender].profileId > 0,
             "Verified organization only!"
         );
-
-        _;
-    }
-
-    modifier patientOnly(address patient) {
-        require(patientInstance.isPatient(patient), "Patient only!");
 
         _;
     }
@@ -76,10 +77,12 @@ contract Organization {
 
     /********************APIs *****/
 
-    function setPatientInstance(
-        address newPatientInstance
-    ) public marketplaceOnly(msg.sender) {
-        patientInstance = Patient(newPatientInstance);
+    function setPatient(address patient) public ownerOnly {
+        patientInstance = Patient(patient);
+    }
+
+    function setMarketplace(address market) public ownerOnly {
+        marketplaceInstance = Marketplace(market);
     }
 
     function addNewPatient(
@@ -154,9 +157,9 @@ contract Organization {
         return organizationProfileMap[userAddress].profileId > 0;
     }
 
-    function getOrgProfile(
+    function getOrganizationType(
         address org
-    ) public view marketplaceOnly(msg.sender) returns (Profile memory) {
-        return organizationProfileMap[org];
+    ) public view marketplaceOnly(msg.sender) returns (OrganizationType) {
+        return organizationProfileMap[org].organizationType;
     }
 }

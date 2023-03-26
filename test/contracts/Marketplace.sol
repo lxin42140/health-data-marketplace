@@ -13,11 +13,9 @@ contract Marketplace {
     struct Listing {
         uint256 id;
         address listingOwner;
-        uint timeUnit; // fixed to 1 day
         uint256 price;
         MedicalRecord.MedicalRecordType[] recordTypes;
         Organization.OrganizationType[] allowOrganizationTypes;
-        uint256 expirationDate;
     }
 
     struct Purchase {
@@ -28,15 +26,10 @@ contract Marketplace {
         address[] medicalRecordPointers;
     }
 
-    // struct QueryResponse {
-    //     Listing[] matchingListings;
-    // }
-
     /** PROPERTIES */
     Organization public orgInstance;
     Patient public patientInstance;
     MedToken public medTokenInstance;
-    // owner of marketplace
     address public owner = msg.sender;
     // commission of marketplace e.g. 10 == 10%
     uint256 public marketCommissionRate;
@@ -62,21 +55,6 @@ contract Marketplace {
     constructor(uint256 marketFee, uint256 orgFee) {
         marketCommissionRate = marketFee;
         orgCommissionRate = orgFee;
-
-        patientInstance = new Patient();
-        orgInstance = new Organization();
-
-        //MedToken depends on marketplace, patient and organization
-        medTokenInstance = new MedToken(
-            address(patientInstance),
-            address(orgInstance)
-        );
-
-        // Organization depends on marketplace and patient
-        orgInstance.setPatientInstance(address(patientInstance));
-
-        // Patient depends on marketplace and organization
-        patientInstance.setOrgInstance(address(orgInstance));
     }
 
     /********************MODIFIERS *****/
@@ -108,17 +86,6 @@ contract Marketplace {
         _;
     }
 
-    modifier removeExpiredListing() {
-        for (uint i = 0; i <= listingId; i++) {
-            if (isExpired(listingMap[i].expirationDate)) {
-                delete listingMap[i];
-                emit ListingRemoved(i, "Expired listing");
-            }
-        }
-
-        _;
-    }
-
     /********************UTILITY FUNCTIONS *****/
 
     // returns true if input date is earlier than block timestamp
@@ -129,7 +96,7 @@ contract Marketplace {
     // generate a 6 digit OTP which is used to access the DB
     function generateRandomOTP() private view returns (uint256) {
         uint256 seed = uint256(
-            keccak256(abi.encodePacked(block.timestamp, block.prevrandao))
+            keccak256(abi.encodePacked(block.timestamp, block.difficulty))
         );
         uint256 random = uint256(keccak256(abi.encodePacked(seed)));
         uint256 otp = random % 1000000;
@@ -175,6 +142,18 @@ contract Marketplace {
 
     /********************APIS *****/
 
+    function setOrganization(address org) public ownerOnly {
+        orgInstance = Organization(org);
+    }
+
+    function setPatient(address patient) public ownerOnly {
+        patientInstance = Patient(patient);
+    }
+
+    function setMedToken(address token) public ownerOnly {
+        medTokenInstance = MedToken(token);
+    }
+
     function isOwner(address user) public view returns (bool) {
         return user == owner;
     }
@@ -186,20 +165,8 @@ contract Marketplace {
     function addListing(
         uint256 price,
         MedicalRecord.MedicalRecordType[] memory recordTypes,
-        Organization.OrganizationType[] memory allowOrganizationTypes,
-        uint256 daysTillExpiry
-    )
-        public
-        patientOnly(msg.sender)
-        removeExpiredListing
-        returns (Listing memory)
-    {
-        // determine expiry, if any
-        uint256 expiry = 0;
-        if (daysTillExpiry > 0) {
-            expiry = block.timestamp + daysTillExpiry * SECONDS_IN_DAYS;
-        }
-
+        Organization.OrganizationType[] memory allowOrganizationTypes
+    ) public patientOnly(msg.sender) returns (Listing memory) {
         // incre id
         listingId++;
 
@@ -207,14 +174,13 @@ contract Marketplace {
         Listing memory newListing = Listing(
             listingId, // id
             msg.sender, // listingOwner
-            1 days, // timeUnit
             price, // price per time unit
             recordTypes,
-            allowOrganizationTypes,
-            expiry
+            allowOrganizationTypes
         );
 
         listingMap[listingId] = newListing;
+
         emit ListingAdded(msg.sender, listingId);
 
         return listingMap[listingId];
@@ -244,14 +210,10 @@ contract Marketplace {
     )
         public
         organisationOnly(msg.sender)
-        removeExpiredListing
         validListingOnly(id)
         returns (Purchase memory)
     {
         /**************PURCHASE REQUIREMENT CHECK******/
-
-        // must purchase for at least 30 days
-        require(daysToPurchase > 30, "Invalid purchase duration! Min 30 days");
 
         // only verified buyers can buy
         require(
@@ -263,9 +225,8 @@ contract Marketplace {
 
         // only allowed organizations can purchase
         if (listing.allowOrganizationTypes.length > 0) {
-            Organization.Profile memory orgProfile = orgInstance.getOrgProfile(
-                msg.sender
-            );
+            Organization.OrganizationType orgType = orgInstance
+                .getOrganizationType(msg.sender);
 
             bool isAllowed = false;
 
@@ -274,10 +235,7 @@ contract Marketplace {
                 i < listing.allowOrganizationTypes.length;
                 i++
             ) {
-                if (
-                    listing.allowOrganizationTypes[i] ==
-                    orgProfile.organizationType
-                ) {
+                if (listing.allowOrganizationTypes[i] == orgType) {
                     isAllowed = true;
                     break;
                 }
@@ -355,14 +313,6 @@ contract Marketplace {
         medTokenInstance.transferCredit(listing.listingOwner, sellerEarning);
         medTokenInstance.transferCredit(issuedBy, orgComission);
 
-        emit ListingPurchased(
-            msg.sender,
-            id,
-            existingPurchases[index].accessStartDate,
-            existingPurchases[index].expirationDate,
-            totalPrice
-        );
-
         return purchases[msg.sender][index];
     }
 
@@ -378,38 +328,7 @@ contract Marketplace {
     // for individual organisation to get their purchase details
     function buyerGetPurchaseDetails(
         uint256 id
-    )
-        public
-        organisationOnly(msg.sender)
-        removeExpiredListing
-        returns (Purchase memory)
-    {
+    ) public view organisationOnly(msg.sender) returns (Purchase memory) {
         return getPurchaseDetails(msg.sender, id);
     }
-
-    // function searchListings(
-    //     uint8 age,
-    //     string memory gender,
-    //     string memory country,
-    //     string memory medicalRecordType
-    // )
-    //     public
-    //     organisationOnly(msg.sender)
-    //     removeExpiredListing
-    //     returns (QueryResponse memory)
-    // {
-    //     Listing[] memory matchingListings;
-
-    //     for (uint i = 0; i <= listingId; i++) {
-    //         Listing memory currListing = listingMap[i];
-
-    //         // TODO: use patient to get the profile and check base on filter
-    //         // TODO: use patient to get listing of medical records
-    //         // TODO: use list of medical records to check if any of the records are matching
-    //     }
-
-    //     QueryResponse memory resp = QueryResponse(matchingListings);
-
-    //     return resp;
-    // }
 }

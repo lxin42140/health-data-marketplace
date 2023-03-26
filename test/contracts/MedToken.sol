@@ -8,21 +8,22 @@ import "./Organization.sol";
 contract MedToken {
     /** PROPERTIES */
     ERC20 erc20Contract;
+    address owner = msg.sender;
     Marketplace marketplaceInstance;
     Patient patientInstance;
     Organization orgInstance;
 
-    constructor(address patient, address org) {
+    constructor() {
         ERC20 e = new ERC20();
         erc20Contract = e;
-        marketplaceInstance = Marketplace(msg.sender);
-        patientInstance = Patient(patient);
-        orgInstance = Organization(org);
     }
 
-    /**
-     * Check if caller is patient, organisation or marketplace
-     */
+    modifier ownerOnly() {
+        require(msg.sender == owner, "Only only!");
+
+        _;
+    }
+
     modifier authorizedOnly() {
         require(
             marketplaceInstance.isMarketplace(msg.sender) ||
@@ -31,6 +32,18 @@ contract MedToken {
             "Only patient, marketplace and organization can perform this action!"
         );
         _;
+    }
+
+    function setOrganization(address org) public ownerOnly {
+        orgInstance = Organization(org);
+    }
+
+    function setPatient(address patient) public ownerOnly {
+        patientInstance = Patient(patient);
+    }
+
+    function setMarketplace(address market) public ownerOnly {
+        marketplaceInstance = Marketplace(market);
     }
 
     /**
