@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 import "./Marketplace.sol";
 import "./Patient.sol";
@@ -36,7 +37,7 @@ contract Organization {
         string filePointer
     );
 
-    constructor() public {
+    constructor() {
         marketplaceInstance = Marketplace(msg.sender);
         profileId++;
         organizationProfileMap[address(this)] = Profile(
@@ -65,7 +66,10 @@ contract Organization {
     }
 
     modifier marketplaceOnly(address marketplace) {
-        require(marketplace == address(marketplaceInstance), "Marketplace only!");
+        require(
+            marketplace == address(marketplaceInstance),
+            "Marketplace only!"
+        );
 
         _;
     }
@@ -140,18 +144,19 @@ contract Organization {
         //     patientAddress,
         //     medicalRecordAddress
         // );
-
         // emit MedicalRecordAdded(msg.sender, patientAddress, filePointer);
     }
 
     // returns true if the user is a verified organization
-    function isVerifiedOrganization(address userAddress) public returns (bool) {
-        return organizationProfileMap[msg.sender].profileId > 0;
+    function isVerifiedOrganization(
+        address userAddress
+    ) public view returns (bool) {
+        return organizationProfileMap[userAddress].profileId > 0;
     }
 
     function getOrgProfile(
         address org
-    ) public marketplaceOnly(msg.sender) returns (Profile memory) {
+    ) public view marketplaceOnly(msg.sender) returns (Profile memory) {
         return organizationProfileMap[org];
     }
 }

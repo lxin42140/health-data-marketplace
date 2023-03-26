@@ -1,5 +1,5 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
-
 import "./ERC20.sol";
 import "./Marketplace.sol";
 import "./Patient.sol";
@@ -12,7 +12,7 @@ contract MedToken {
     Patient patientInstance;
     Organization orgInstance;
 
-    constructor(address patient, address org) public {
+    constructor(address patient, address org) {
         ERC20 e = new ERC20();
         erc20Contract = e;
         marketplaceInstance = Marketplace(msg.sender);

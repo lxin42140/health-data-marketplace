@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 import "./Organization.sol";
 import "./Patient.sol";
@@ -14,8 +15,7 @@ contract Marketplace {
         address listingOwner;
         uint timeUnit; // fixed to 1 day
         uint256 price;
-        // TODO: need to wait for medical record to add the enum
-        string recordType;
+        MedicalRecord.MedicalRecordType[] recordTypes;
         Organization.OrganizationType[] allowOrganizationTypes;
         uint256 expirationDate;
     }
@@ -28,9 +28,9 @@ contract Marketplace {
         address[] medicalRecordPointers;
     }
 
-    struct QueryResponse {
-        Listing[] matchingListings;
-    }
+    // struct QueryResponse {
+    //     Listing[] matchingListings;
+    // }
 
     /** PROPERTIES */
     Organization public orgInstance;
@@ -59,7 +59,7 @@ contract Marketplace {
         uint256 paidPrice
     ); // event of purchasing a listing access
 
-    constructor(uint256 marketFee, uint256 orgFee) public {
+    constructor(uint256 marketFee, uint256 orgFee) {
         marketCommissionRate = marketFee;
         orgCommissionRate = orgFee;
 
@@ -67,7 +67,10 @@ contract Marketplace {
         orgInstance = new Organization();
 
         //MedToken depends on marketplace, patient and organization
-        medTokenInstance = new MedToken(address(patientInstance), address(orgInstance));
+        medTokenInstance = new MedToken(
+            address(patientInstance),
+            address(orgInstance)
+        );
 
         // Organization depends on marketplace and patient
         orgInstance.setPatientInstance(address(patientInstance));
@@ -100,8 +103,7 @@ contract Marketplace {
     }
 
     modifier validListingOnly(uint256 id) {
-        Listing memory listing = listingMap[id];
-        require(listing.id != 0, "Invalid listing!");
+        require(listingMap[id].id != 0, "Invalid listing!");
 
         _;
     }
@@ -138,7 +140,7 @@ contract Marketplace {
     function getPurchaseDetails(
         address buyer,
         uint256 id
-    ) private returns (Purchase memory) {
+    ) private view returns (Purchase memory) {
         Purchase[] memory orgPurchaseHistory = purchases[buyer];
         uint index = 0;
         bool purchaseExists = false;
@@ -160,8 +162,13 @@ contract Marketplace {
         // check if accesss has expired
         require(!isExpired(purchase.expirationDate), "Purchase has expired!");
 
-        address patient = purchase.listing.listingOwner;
-        //TODO: get matching medical record addresses from patients
+        // retrieve matching medical record addresses
+        address[] memory matchingRecords = patientInstance.getMedicalRecords(
+            purchase.listing.listingOwner,
+            purchase.listing.recordTypes
+        );
+
+        purchase.medicalRecordPointers = matchingRecords;
 
         return purchase;
     }
@@ -178,8 +185,7 @@ contract Marketplace {
 
     function addListing(
         uint256 price,
-        //FIXME: check check record type
-        string memory recordTypes,
+        MedicalRecord.MedicalRecordType[] memory recordTypes,
         Organization.OrganizationType[] memory allowOrganizationTypes,
         uint256 daysTillExpiry
     )
@@ -340,11 +346,14 @@ contract Marketplace {
         uint256 sellerEarning = totalPrice - marketCommission - orgComission;
 
         address patient = listing.listingOwner;
-        //TODO: get issued by of patient
+        Patient.Profile memory profile = patientInstance.getPatientProfile(
+            patient
+        );
+        address issuedBy = profile.issuedBy;
 
         medTokenInstance.transferCredit(address(this), marketCommission);
         medTokenInstance.transferCredit(listing.listingOwner, sellerEarning);
-        //TODO: transfer credit to the org that added the user
+        medTokenInstance.transferCredit(issuedBy, orgComission);
 
         emit ListingPurchased(
             msg.sender,
@@ -362,7 +371,7 @@ contract Marketplace {
     function marketGetPurchaseDetails(
         address org,
         uint256 id
-    ) public ownerOnly returns (Purchase memory) {
+    ) public view ownerOnly returns (Purchase memory) {
         return getPurchaseDetails(org, id);
     }
 
@@ -378,29 +387,29 @@ contract Marketplace {
         return getPurchaseDetails(msg.sender, id);
     }
 
-    function searchListings(
-        uint8 age,
-        string memory gender,
-        string memory country,
-        string memory medicalRecordType
-    )
-        public
-        organisationOnly(msg.sender)
-        removeExpiredListing
-        returns (QueryResponse memory)
-    {
-        Listing[] memory matchingListings;
+    // function searchListings(
+    //     uint8 age,
+    //     string memory gender,
+    //     string memory country,
+    //     string memory medicalRecordType
+    // )
+    //     public
+    //     organisationOnly(msg.sender)
+    //     removeExpiredListing
+    //     returns (QueryResponse memory)
+    // {
+    //     Listing[] memory matchingListings;
 
-        for (uint i = 0; i <= listingId; i++) {
-            Listing memory currListing = listingMap[i];
+    //     for (uint i = 0; i <= listingId; i++) {
+    //         Listing memory currListing = listingMap[i];
 
-            // TODO: use patient to get the profile and check base on filter
-            // TODO: use patient to get listing of medical records
-            // TODO: use list of medical records to check if any of the records are matching
-        }
+    //         // TODO: use patient to get the profile and check base on filter
+    //         // TODO: use patient to get listing of medical records
+    //         // TODO: use list of medical records to check if any of the records are matching
+    //     }
 
-        QueryResponse memory resp = QueryResponse(matchingListings);
+    //     QueryResponse memory resp = QueryResponse(matchingListings);
 
-        return resp;
-    }
+    //     return resp;
+    // }
 }

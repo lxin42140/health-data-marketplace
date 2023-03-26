@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 import "./Marketplace.sol";
 import "./Patient.sol";
@@ -14,19 +15,24 @@ contract MedicalRecord {
     }
 
     /** STRUCTS */
-    struct Metadata {
-        MedicalRecordType medicalRecordType;
-        uint dateCreated;
-        address issuedBy; //organizationAddress
-        address owner; //ownerAddress
-        string filePointer; //URI of file
-    }
+    // struct Metadata {
+    //     MedicalRecordType medicalRecordType;
+    //     uint dateCreated;
+    //     address issuedBy; //organizationAddress
+    //     address owner; //ownerAddress
+    //     string filePointer; //URI of file
+    // }
 
     /** PROPERTIES */
     Marketplace public marketplaceInstance;
     Patient public patientInstance;
     Organization public orgInstance;
-    Metadata metadata;
+    // Metadata metadata;
+    MedicalRecordType medicalRecordType;
+    uint dateCreated;
+    address issuedBy; //organizationAddress
+    address owner; //ownerAddress
+    string filePointer; //URI of file
 
     /** SWITCH */
     bool public contractStopped;
@@ -41,37 +47,45 @@ contract MedicalRecord {
 
     constructor(
         MedicalRecordType typeOfRecord,
-        uint dateCreated,
-        address issuedBy,
-        address owner,
-        string memory uri,
-        address marketplace,
+        uint createdDate,
+        address issuedByOrg,
         address patient,
-        address org
-    ) public {
-        metadata = Metadata(typeOfRecord, dateCreated, issuedBy, owner, uri);
+        string memory uri,
+        address marketplaceAddress,
+        address patientAddress,
+        address orgAddress
+    ) {
+        // metadata = Metadata(typeOfRecord, dateCreated, issuedBy, owner, uri);
+        medicalRecordType = typeOfRecord;
+        dateCreated = createdDate;
+        issuedBy = issuedByOrg;
+        owner = patient;
+        filePointer = uri;
 
-        marketplaceInstance = Marketplace(marketplaceInstance);
-        orgInstance = Organization(org);
-        patientInstance = Patient(patient);
+        marketplaceInstance = Marketplace(marketplaceAddress);
+        orgInstance = Organization(orgAddress);
+        patientInstance = Patient(patientAddress);
     }
 
     /********************MODIFIERS *****/
     modifier marketplaceOnly() {
-        require(address(marketplaceInstance) == msg.sender, "Marketplace only!");
+        require(
+            address(marketplaceInstance) == msg.sender,
+            "Marketplace only!"
+        );
 
         _;
     }
 
     modifier ownerOnly() {
-        require(metadata.owner == msg.sender, "Owner only!");
+        require(owner == msg.sender, "Owner only!");
 
         _;
     }
 
     modifier issuedByOnly() {
         require(
-            metadata.issuedBy == msg.sender,
+            issuedBy == msg.sender,
             "Organization that issued the record only!"
         );
 
@@ -82,13 +96,13 @@ contract MedicalRecord {
 
     function checkIsIssuedBy(
         address organizationAddress
-    ) public returns (bool) {
+    ) public view returns (bool) {
         require(
-            msg.sender == address(marketplaceInstance) || msg.sender == metadata.owner,
+            msg.sender == address(marketplaceInstance) || msg.sender == owner,
             "Marketplace and owner only!"
         );
 
-        return organizationAddress == metadata.issuedBy;
+        return organizationAddress == issuedBy;
     }
 
     function toggleContractStopped() public ownerOnly {
@@ -111,14 +125,29 @@ contract MedicalRecord {
         }
     }
 
-    function getRecordMetadata() public returns (Metadata memory) {
+    function getRecordType() public view returns (MedicalRecordType) {
         require(
             msg.sender == address(marketplaceInstance) ||
-                msg.sender == metadata.owner ||
-                metadata.issuedBy == msg.sender,
-            "Marketplace, owner and organization that issued the record only!"
+                msg.sender == address(patientInstance) ||
+                msg.sender == address(orgInstance) ||
+                msg.sender == owner ||
+                msg.sender == issuedBy,
+            "No permission to access the record!"
         );
 
-        return metadata;
+        return medicalRecordType;
     }
+
+    // function getRecordMetadata() public view returns (Metadata memory) {
+    //     require(
+    //         msg.sender == address(marketplaceInstance) ||
+    //             msg.sender == address(patientInstance) ||
+    //             msg.sender == address(orgInstance) ||
+    //             msg.sender == metadata.owner ||
+    //             msg.sender == metadata.issuedBy,
+    //         "No permission to access the record!"
+    //     );
+
+    //     return metadata;
+    // }
 }

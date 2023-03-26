@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 import "./MedicalRecord.sol";
 import "./Organization.sol";
@@ -19,13 +20,13 @@ contract Patient {
     Marketplace public marketplaceInstance;
     uint256 profileId;
     mapping(address => Profile) profileMap;
-    mapping(address => address[]) patientRecordMap; // list of medical records associated with each patient
+    mapping(address => MedicalRecord[]) patientRecordMap; // list of medical records associated with each patient
 
     /** EVENTS */
     event PatientProfileAdded(address addedBy, address newPatientAddress);
     event MedicalRecordAdded(address patient, address medicalRecord);
 
-    constructor() public {
+    constructor() {
         marketplaceInstance = Marketplace(msg.sender);
     }
 
@@ -99,25 +100,69 @@ contract Patient {
         address patientAddress,
         address medicalRecordAddress
     ) public organisationOnly(msg.sender) patientOnly(patientAddress) {
-        patientRecordMap[patientAddress].push(medicalRecordAddress);
+        patientRecordMap[patientAddress].push(
+            MedicalRecord(medicalRecordAddress)
+        );
 
         emit MedicalRecordAdded(patientAddress, medicalRecordAddress);
     }
 
     function getMedicalRecords(
-        address patientAddress
+        address patientAddress,
+        MedicalRecord.MedicalRecordType[] memory recordTypes
     ) public view patientOnly(patientAddress) returns (address[] memory) {
         require(
             msg.sender == address(marketplaceInstance) ||
                 msg.sender ==
                 address(profileMap[patientAddress].patientAddress),
-            "Only associatd patient or marketplace can access the personal mpedical records"
+            "Only patient or marketplace can access!"
         );
 
-        return patientRecordMap[patientAddress];
+        // get patient medical records
+        MedicalRecord[] memory patientRecords = patientRecordMap[
+            patientAddress
+        ];
+        address[] memory response = new address[](patientRecords.length);
+        uint index = 0;
+
+        // if no record type, return all
+        if (recordTypes.length > 0) {
+            for (uint i = 0; i < patientRecords.length; i++) {
+                response[index++] = address(patientRecords[i]);
+            }
+        } else {
+            // filter records base on record type
+            for (uint i = 0; i < patientRecords.length; i++) {
+                MedicalRecord.MedicalRecordType recordType = patientRecords[i]
+                    .getRecordType();
+
+                for (uint j = 0; j < recordTypes.length; j++) {
+                    if (recordType == recordTypes[j]) {
+                        response[index++] = address(patientRecords[i]);
+                        break;
+                    }
+                }
+            }
+        }
+
+        return response;
     }
 
-    function isPatient(address patientAddress) public returns (bool) {
+    function getPatientProfile(
+        address patientAddress
+    ) public view returns (Profile memory) {
+        require(
+            msg.sender == address(marketplaceInstance) ||
+                msg.sender ==
+                address(profileMap[patientAddress].patientAddress) ||
+                orgInstance.isVerifiedOrganization(msg.sender),
+            "Only patient, verified organization and marketplace can access!"
+        );
+
+        return profileMap[patientAddress];
+    }
+
+    function isPatient(address patientAddress) public view returns (bool) {
         return profileMap[patientAddress].profileId > 0;
     }
 }
