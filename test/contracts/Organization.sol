@@ -30,7 +30,6 @@ contract Organization {
     uint256 profileId;
 
     /** EVENTS */
-    event PatientAdded(address addedBy, address newPatientAddress);
     event OrganizationAdded(address addedBy, address newOrgAddress);
     event OrganizationRemoved(address removedBy, address deletedOrgAddress);
     event MedicalRecordAdded(
@@ -41,9 +40,9 @@ contract Organization {
 
     constructor() {
         profileId++;
-        organizationProfileMap[address(this)] = Profile(
+        organizationProfileMap[msg.sender] = Profile(
             profileId,
-            address(0),
+            msg.sender,
             OrganizationType.Hospital,
             "Singapore",
             "NUH"
@@ -83,17 +82,6 @@ contract Organization {
 
     function setMarketplace(address market) public ownerOnly {
         marketplaceInstance = Marketplace(market);
-    }
-
-    function addNewPatient(
-        address patientAddress,
-        uint8 age,
-        string memory gender,
-        string memory country
-    ) public verifiedOnly {
-        patientInstance.addUserAsPatient(patientAddress, age, gender, country);
-
-        emit PatientAdded(msg.sender, patientAddress);
     }
 
     function addNewOrganisation(

@@ -36,17 +36,43 @@ contract("Marketplace", function (accounts) {
         await medTokenInstance.setMarketplace(marketplaceInstance.address);
 
         // set up org dependency
-        await medTokenInstance.setPatient(patientInstance.address);
-        await medTokenInstance.setMarketplace(marketplaceInstance.address);
+        await orgInstance.setPatient(patientInstance.address);
+        await orgInstance.setMarketplace(marketplaceInstance.address);
 
         // set up patient dependency
-        await medTokenInstance.setMarketplace(marketplaceInstance.address);
-        await medTokenInstance.setOrganization(orgInstance.address);
+        await patientInstance.setMarketplace(marketplaceInstance.address);
+        await patientInstance.setOrganization(orgInstance.address);
     });
 
-    console.log("Testing Marketplace contract");
+    console.log("Testing patient contract");
 
-    it("Dummy", async () => {
+    it("Add new patient", async () => {
+        await truffleAssert.reverts(patientInstance.addNewPatient(accounts[1], 10, "male", "singapore", {
+            from: accounts[2    ],
+        }), "Verified organization only!");
+
+        const patientAdded = await patientInstance.addNewPatient(accounts[1], 10, "male", "singapore", {
+            from: accounts[0],
+        });
+
+        truffleAssert.eventEmitted(patientAdded, "PatientAdded");
+
+        const profile = await patientInstance.getPatientProfile(accounts[1], {
+            from: accounts[0],
+        });
+
+        console.log(profile);
+
+        assert.deepEqual(profile.issuedBy, accounts[0], "Wrong issued by address");
+        assert.deepEqual(profile.patientAddress, accounts[1], "Wrong patient address");
+        assert.deepEqual(profile.age, 10, "Wrong patient age");
+        assert.deepEqual(profile.gender, "male", "Wrong patient gender");
+        assert.deepEqual(profile.country, "singapore", "Wrong patient country");
+
+        await truffleAssert.reverts(patientInstance.getPatientProfile(accounts[1], {
+            from: accounts[2],
+        }), "Only patient, issued by organization and marketplace can access!");
+
     });
 
 

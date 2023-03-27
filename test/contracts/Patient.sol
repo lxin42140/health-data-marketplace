@@ -25,7 +25,7 @@ contract Patient {
     mapping(address => MedicalRecord[]) patientRecordMap; // list of medical records associated with each patient
 
     /** EVENTS */
-    event PatientProfileAdded(address addedBy, address newPatientAddress);
+    event PatientAdded(address addedBy, address newPatientAddress);
     event MedicalRecordAdded(address patient, address medicalRecord);
 
     constructor() {}
@@ -33,7 +33,7 @@ contract Patient {
     /********************MODIFIERS *****/
 
     modifier ownerOnly() {
-        require(msg.sender == owner, "Only only!");
+        require(msg.sender == owner, "Owner only!");
 
         _;
     }
@@ -81,7 +81,8 @@ contract Patient {
         orgInstance = Organization(org);
     }
 
-    function addUserAsPatient(
+    // TESTED
+    function addNewPatient(
         address patientAddress,
         uint8 age,
         string memory gender,
@@ -101,7 +102,21 @@ contract Patient {
 
         profileMap[patientAddress] = newProfile;
 
-        emit PatientProfileAdded(msg.sender, patientAddress);
+        emit PatientAdded(msg.sender, patientAddress);
+    }
+
+    // TESTED
+    function getPatientProfile(
+        address patientAddress
+    ) public view returns (Profile memory) {
+        require(
+            msg.sender == address(marketplaceInstance) ||
+                msg.sender == profileMap[patientAddress].patientAddress ||
+                msg.sender == profileMap[patientAddress].issuedBy,
+            "Only patient, issued by organization and marketplace can access!"
+        );
+
+        return profileMap[patientAddress];
     }
 
     function addNewMedicalRecord(
@@ -154,20 +169,6 @@ contract Patient {
         }
 
         return response;
-    }
-
-    function getPatientProfile(
-        address patientAddress
-    ) public view returns (Profile memory) {
-        require(
-            msg.sender == address(marketplaceInstance) ||
-                msg.sender ==
-                address(profileMap[patientAddress].patientAddress) ||
-                orgInstance.isVerifiedOrganization(msg.sender),
-            "Only patient, verified organization and marketplace can access!"
-        );
-
-        return profileMap[patientAddress];
     }
 
     function isPatient(address patientAddress) public view returns (bool) {
