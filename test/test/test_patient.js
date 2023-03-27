@@ -46,10 +46,10 @@ contract("Marketplace", function (accounts) {
 
     console.log("Testing patient contract");
 
-    it("Add new patient", async () => {
+    it("Add and retrieve new patient", async () => {
         await truffleAssert.reverts(patientInstance.addNewPatient(accounts[1], 10, "male", "singapore", {
-            from: accounts[2    ],
-        }), "Verified organization only!");
+            from: accounts[2],
+        }), "Verified organization only");
 
         const patientAdded = await patientInstance.addNewPatient(accounts[1], 10, "male", "singapore", {
             from: accounts[0],
@@ -77,9 +77,102 @@ contract("Marketplace", function (accounts) {
 
         await truffleAssert.reverts(patientInstance.getPatientProfile(accounts[1], {
             from: accounts[2],
-        }), "Only patient, issued by organization and marketplace can access!");
+        }), "Only patient, issued by organization and marketplace can access");
 
     });
+
+    it("Add medical records", async () => {
+        await truffleAssert.reverts(patientInstance.addNewMedicalRecord(
+            accounts[0],
+            accounts[1],
+            0,
+            "www.file.com",
+            {
+                from: accounts[3]
+            }
+        ), "Only patient and verified organization can add records");
+
+        await truffleAssert.reverts(patientInstance.addNewMedicalRecord(
+            accounts[1],
+            accounts[1],
+            0,
+            "www.file.com",
+            {
+                from: accounts[0]
+            }
+        ), "Associated org must be same");
+
+        await truffleAssert.reverts(patientInstance.addNewMedicalRecord(
+            accounts[0],
+            accounts[2],
+            0,
+            "www.file.com",
+            {
+                from: accounts[0]
+            }
+        ), "Associated user is not patient");
+
+        await truffleAssert.reverts(patientInstance.addNewMedicalRecord(
+            accounts[0],
+            accounts[2],
+            0,
+            "www.file.com",
+            {
+                from: accounts[1]
+            }
+        ), "Associated patient must be same");
+
+        await truffleAssert.reverts(patientInstance.addNewMedicalRecord(
+            accounts[1],
+            accounts[1],
+            0,
+            "www.file.com",
+            {
+                from: accounts[1]
+            }
+        ), "Associated org is not verified");
+
+        const medicalRecordAddress = await patientInstance.addNewMedicalRecord(
+            accounts[0],
+            accounts[1],
+            0,
+            "www.file.com",
+            {
+                from: accounts[0]
+            }
+        )
+
+        truffleAssert.eventEmitted(medicalRecordAddress, "MedicalRecordAdded");
+    });
+
+    it("retrieve and filter medical records", async () => {
+        const allMedicalRecords = await patientInstance.getMedicalRecords.call(accounts[1],
+            [],
+            {
+                from: accounts[0]
+            });
+
+        assert.equal(allMedicalRecords.length, 1, "Medical record count is wrong");
+
+        const matchingRecords = await patientInstance.getMedicalRecords.call(
+            accounts[1],
+            [0],
+            {
+                from: accounts[0]
+            });
+
+        assert.equal(matchingRecords.length, 1, "Filtered medical record count is wrong");
+
+
+        const noRecords = await patientInstance.getMedicalRecords.call(
+            accounts[1],
+            [1],
+            {
+                from: accounts[0]
+            });
+
+        assert.equal(noRecords.length, 0, "Filtered medical record count is wrong");
+    })
 
 
 });

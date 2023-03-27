@@ -22,11 +22,14 @@ contract Patient {
 
     uint256 profileId;
     mapping(address => Profile) profileMap;
-    mapping(address => MedicalRecord[]) patientRecordMap; // list of medical records associated with each patient
+    mapping(address => address[]) patientRecordMap; // list of medical records associated with each patient
+    mapping(address => MedicalRecord.MedicalRecordType) recordTypeMap; // medical record and its type
 
     /** EVENTS */
     event PatientAdded(address addedBy, address newPatientAddress);
     event MedicalRecordAdded(address caller, address medicalRecord);
+    event Log(string reason);
+    event Log(uint number);
 
     constructor() {}
 
@@ -119,12 +122,13 @@ contract Patient {
         return profileMap[patientAddress];
     }
 
+    //TESTED
     function addNewMedicalRecord(
         address issuedByOrg,
         address patient,
         MedicalRecord.MedicalRecordType typeOfRecord,
         string memory uri
-    ) public {
+    ) public returns (address) {
         if (orgInstance.isVerifiedOrganization(msg.sender)) {
             // org adding new record
             require(issuedByOrg == msg.sender, "Associated org must be same!");
@@ -134,7 +138,7 @@ contract Patient {
             );
         } else if (profileMap[msg.sender].profileId > 0) {
             // patient adding new record
-            require(msg.sender == patient, "Associated must be same!");
+            require(msg.sender == patient, "Associated patient must be same!");
             require(
                 orgInstance.isVerifiedOrganization(issuedByOrg),
                 "Associated org is not verified!"
@@ -152,49 +156,53 @@ contract Patient {
             address(marketplaceInstance)
         );
 
-        patientRecordMap[patient].push(medRecord);
+        patientRecordMap[patient].push(address(medRecord));
+        recordTypeMap[address(medRecord)] = typeOfRecord;
+
         emit MedicalRecordAdded(msg.sender, address(medRecord));
+
+        return address(medRecord);
     }
 
+    //TESTED
     function getMedicalRecords(
         address patientAddress,
         MedicalRecord.MedicalRecordType[] memory recordTypes
     ) public view patientOnly(patientAddress) returns (address[] memory) {
         require(
             msg.sender == address(marketplaceInstance) ||
-                msg.sender ==
-                address(profileMap[patientAddress].patientAddress),
-            "Only patient or marketplace can access!"
+                msg.sender == profileMap[patientAddress].patientAddress ||
+                msg.sender == profileMap[patientAddress].issuedBy,
+            "Only patient, issued by org or marketplace can access!"
         );
 
         // get patient medical records
-        MedicalRecord[] memory patientRecords = patientRecordMap[
-            patientAddress
-        ];
-        address[] memory response = new address[](patientRecords.length);
-        uint index = 0;
+        address[] memory patientRecords = patientRecordMap[patientAddress];
 
         // if no record type, return all
-        if (recordTypes.length > 0) {
-            for (uint i = 0; i < patientRecords.length; i++) {
-                response[index++] = address(patientRecords[i]);
-            }
+        if (recordTypes.length == 0) {
+            return patientRecords;
         } else {
-            // filter records base on record type
-            for (uint i = 0; i < patientRecords.length; i++) {
-                MedicalRecord.MedicalRecordType recordType = patientRecords[i]
-                    .getRecordType();
+            uint index = 0;
+            uint[] memory indices = new uint[](patientRecords.length);
 
+            for (uint i = 0; i < patientRecords.length; i++) {
                 for (uint j = 0; j < recordTypes.length; j++) {
-                    if (recordType == recordTypes[j]) {
-                        response[index++] = address(patientRecords[i]);
+                    if (recordTypeMap[patientRecords[i]] == recordTypes[j]) {
+                        indices[index] = i;
+                        index++;
                         break;
                     }
                 }
             }
-        }
 
-        return response;
+            address[] memory response = new address[](index);
+            for (uint i = 0; i < response.length; i++) {
+                response[i] = patientRecords[indices[i]];
+            }
+
+            return response;
+        }
     }
 
     function isPatient(address patientAddress) public view returns (bool) {
