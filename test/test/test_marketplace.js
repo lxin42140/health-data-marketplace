@@ -46,5 +46,26 @@ contract("Marketplace", function (accounts) {
 
     console.log("Testing Marketplace contract");
 
+    it("set up", async () => {
+        // add patient
+        await patientInstance.addNewPatient(accounts[1], 10, "male", "singapore", {
+            from: accounts[0],
+        });
+
+        // add medical record
+        await patientInstance.addNewMedicalRecord(
+            accounts[0],
+            accounts[1],
+            0,
+            "www.file.com",
+            {
+                from: accounts[0]
+            }
+        )
+    });
+
+    it("add listing", async () => {
+
+    });
 
 });

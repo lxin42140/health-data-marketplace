@@ -109,6 +109,18 @@ contract Patient {
     }
 
     // TESTED
+    function removePatient(
+        address patientAddress
+    ) public patientOnly(patientAddress) {
+        require(
+            msg.sender == profileMap[patientAddress].issuedBy,
+            "Only issued by org can perform this!"
+        );
+
+        delete profileMap[patientAddress];
+    }
+
+    // TESTED
     function getPatientProfile(
         address patientAddress
     ) public view returns (Profile memory) {

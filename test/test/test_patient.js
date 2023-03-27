@@ -18,7 +18,7 @@ const oneEth = new BigNumber(1000000000000000000); // 1 eth
 // Address of contracts in truffle can be obtain with: diceCasinoInstance.address
 // =============================     Useful concepts       =============================:
 
-contract("Marketplace", function (accounts) {
+contract("Patient", function (accounts) {
     before(async () => {
         marketplaceInstance = await Marketplace.deployed();
         medTokenInstance = await MedToken.deployed();
@@ -46,7 +46,7 @@ contract("Marketplace", function (accounts) {
 
     console.log("Testing patient contract");
 
-    it("Add and retrieve new patient", async () => {
+    it("add and retrieve new patient", async () => {
         await truffleAssert.reverts(patientInstance.addNewPatient(accounts[1], 10, "male", "singapore", {
             from: accounts[2],
         }), "Verified organization only");
@@ -81,7 +81,7 @@ contract("Marketplace", function (accounts) {
 
     });
 
-    it("Add medical records", async () => {
+    it("add medical records", async () => {
         await truffleAssert.reverts(patientInstance.addNewMedicalRecord(
             accounts[0],
             accounts[1],
@@ -174,5 +174,24 @@ contract("Marketplace", function (accounts) {
         assert.equal(noRecords.length, 0, "Filtered medical record count is wrong");
     })
 
+    it("remove existing patient", async () => {
+        assert.equal(await patientInstance.isPatient(accounts[1]), true, "User should be patient");
+
+        await truffleAssert.reverts(patientInstance.removePatient(
+            accounts[1],
+            {
+                from: accounts[2]
+            }
+        ), "Only issued by org can perform this!");
+
+        await patientInstance.removePatient(
+            accounts[1],
+            {
+                from: accounts[0]
+            }
+        )
+
+        assert.equal(await patientInstance.isPatient(accounts[1]), false, "User should be deleted from patient");
+    });
 
 });
