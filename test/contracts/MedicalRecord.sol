@@ -14,12 +14,21 @@ contract MedicalRecord {
         TreatmentPlan
     }
 
+    /** STRUCT */
+    struct Metadata {
+        address patient;
+        address issuedBy;
+        uint dateCreated;
+        MedicalRecordType recordType;
+        string uri;
+    }
+
     /** PROPERTIES */
     address public patientInstance;
     address public marketplaceInstance;
-    uint public dateCreated;
-    address public issuedBy;
-    address public owner;
+    uint createdDate = block.timestamp;
+    address issuedBy;
+    address owner;
     MedicalRecordType medicalRecordType;
     string filePointer; //URI of file
 
@@ -36,7 +45,6 @@ contract MedicalRecord {
 
     constructor(
         MedicalRecordType typeOfRecord,
-        uint createdDate,
         address issuedByOrg,
         address patient,
         string memory uri,
@@ -44,7 +52,6 @@ contract MedicalRecord {
         address market
     ) {
         medicalRecordType = typeOfRecord;
-        dateCreated = createdDate;
         issuedBy = issuedByOrg;
         owner = patient;
         filePointer = uri;
@@ -88,6 +95,25 @@ contract MedicalRecord {
         } else {
             emit RecordInvalidated();
         }
+    }
+
+    function getMetadata() public view returns (Metadata memory) {
+        require(
+            msg.sender == marketplaceInstance ||
+                msg.sender == issuedBy ||
+                msg.sender == owner,
+            "Only marketplace, owner and issued by org can access!"
+        );
+
+        Metadata memory data = Metadata(
+            owner,
+            issuedBy,
+            createdDate,
+            medicalRecordType,
+            filePointer
+        );
+
+        return data;
     }
 
     function getRecordType() public view returns (MedicalRecordType) {

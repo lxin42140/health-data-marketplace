@@ -26,7 +26,7 @@ contract Patient {
 
     /** EVENTS */
     event PatientAdded(address addedBy, address newPatientAddress);
-    event MedicalRecordAdded(address patient, address medicalRecord);
+    event MedicalRecordAdded(address caller, address medicalRecord);
 
     constructor() {}
 
@@ -120,14 +120,40 @@ contract Patient {
     }
 
     function addNewMedicalRecord(
-        address patientAddress,
-        address medicalRecordAddress
-    ) public organisationOnly(msg.sender) patientOnly(patientAddress) {
-        patientRecordMap[patientAddress].push(
-            MedicalRecord(medicalRecordAddress)
+        address issuedByOrg,
+        address patient,
+        MedicalRecord.MedicalRecordType typeOfRecord,
+        string memory uri
+    ) public {
+        if (orgInstance.isVerifiedOrganization(msg.sender)) {
+            // org adding new record
+            require(issuedByOrg == msg.sender, "Associated org must be same!");
+            require(
+                profileMap[patient].profileId > 0,
+                "Associated user is not patient!"
+            );
+        } else if (profileMap[msg.sender].profileId > 0) {
+            // patient adding new record
+            require(msg.sender == patient, "Associated must be same!");
+            require(
+                orgInstance.isVerifiedOrganization(issuedByOrg),
+                "Associated org is not verified!"
+            );
+        } else {
+            revert("Only patient and verified organization can add records!");
+        }
+
+        MedicalRecord medRecord = new MedicalRecord(
+            typeOfRecord,
+            issuedByOrg,
+            patient,
+            uri,
+            address(this),
+            address(marketplaceInstance)
         );
 
-        emit MedicalRecordAdded(patientAddress, medicalRecordAddress);
+        patientRecordMap[patient].push(medRecord);
+        emit MedicalRecordAdded(msg.sender, address(medRecord));
     }
 
     function getMedicalRecords(

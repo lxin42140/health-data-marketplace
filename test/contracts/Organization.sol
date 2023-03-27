@@ -32,11 +32,6 @@ contract Organization {
     /** EVENTS */
     event OrganizationAdded(address addedBy, address newOrgAddress);
     event OrganizationRemoved(address removedBy, address deletedOrgAddress);
-    event MedicalRecordAdded(
-        address addedBy,
-        address patient,
-        string filePointer
-    );
 
     constructor() {
         profileId++;
@@ -113,15 +108,27 @@ contract Organization {
         emit OrganizationAdded(msg.sender, newOrg);
     }
 
+    function getOrganizationType(
+        address org
+    ) public view marketplaceOnly(msg.sender) returns (OrganizationType) {
+        return organizationProfileMap[org].organizationType;
+    }
+
+    function getOrganizationProfile(
+        address org
+    ) public view returns (Profile memory) {
+        return organizationProfileMap[org];
+    }
+
     function removeOrganization(address orgAddress) public verifiedOnly {
         require(
             organizationProfileMap[orgAddress].profileId > 0,
-            "User to delete is not verified organization!"
+            "Org to delete is not verified organization!"
         );
 
         require(
             msg.sender == organizationProfileMap[orgAddress].verifiedBy,
-            "Caller not eligible to remove organization!"
+            "Org not eligible to remove organization!"
         );
 
         delete organizationProfileMap[orgAddress];
@@ -129,25 +136,9 @@ contract Organization {
         emit OrganizationRemoved(msg.sender, orgAddress);
     }
 
-    function addNewMedicalRecord(address patientAddress) public verifiedOnly {
-        //FIXME: need to create medical record, and passed address of created record
-        // patientInstance.addNewMedicalRecord(
-        //     patientAddress,
-        //     medicalRecordAddress
-        // );
-        // emit MedicalRecordAdded(msg.sender, patientAddress, filePointer);
-    }
-
-    // returns true if the user is a verified organization
     function isVerifiedOrganization(
         address userAddress
     ) public view returns (bool) {
         return organizationProfileMap[userAddress].profileId > 0;
-    }
-
-    function getOrganizationType(
-        address org
-    ) public view marketplaceOnly(msg.sender) returns (OrganizationType) {
-        return organizationProfileMap[org].organizationType;
     }
 }

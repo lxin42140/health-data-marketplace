@@ -57,11 +57,17 @@ contract("Marketplace", function (accounts) {
 
         truffleAssert.eventEmitted(patientAdded, "PatientAdded");
 
-        const profile = await patientInstance.getPatientProfile(accounts[1], {
+        await patientInstance.getPatientProfile(accounts[1], {
             from: accounts[0],
         });
 
-        console.log(profile);
+        await patientInstance.getPatientProfile(accounts[1], {
+            from: marketplaceInstance.address,
+        });
+
+        const profile = await patientInstance.getPatientProfile(accounts[1], {
+            from: accounts[1],
+        });
 
         assert.deepEqual(profile.issuedBy, accounts[0], "Wrong issued by address");
         assert.deepEqual(profile.patientAddress, accounts[1], "Wrong patient address");
