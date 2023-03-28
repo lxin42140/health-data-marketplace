@@ -151,7 +151,8 @@ contract Marketplace {
         return purchase;
     }
 
-    /******************************SETTERS****************/
+    /******************************API****************/
+
     function setOrganization(address org) public ownerOnly {
         orgInstance = Organization(org);
     }
@@ -164,7 +165,6 @@ contract Marketplace {
         medTokenInstance = MedToken(token);
     }
 
-    /******************************TOKEN****************/
     //TESTED
     function getMT() public payable {
         require(
@@ -214,7 +214,6 @@ contract Marketplace {
         emit CreditReturned(msg.sender, (availMT / 10) * 9);
     }
 
-    /******************************API****************/
     //TESTED
     function addListing(
         uint256 pricePerDay,

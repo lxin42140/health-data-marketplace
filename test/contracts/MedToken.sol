@@ -42,6 +42,7 @@ contract MedToken {
         marketplaceInstance = market;
     }
 
+    // TESTED
     function getCredit(
         address recipient,
         uint256 weiAmt
@@ -51,6 +52,7 @@ contract MedToken {
         return amt;
     }
 
+    // TESTED
     function checkCredit(
         address ad
     ) public view marketplaceOnly returns (uint256) {
@@ -58,10 +60,12 @@ contract MedToken {
         return credit;
     }
 
+    // TESTED
     function burnCredit(address source, uint256 amt) public marketplaceOnly {
         erc20Contract.burn(source, amt);
     }
 
+    // TESTED
     function transferCredit(
         address recipient,
         uint256 amt
