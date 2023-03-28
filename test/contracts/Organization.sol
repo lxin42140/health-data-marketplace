@@ -9,7 +9,8 @@ contract Organization {
     enum OrganizationType {
         Hospital,
         Research,
-        Pharmacy
+        Pharmacy,
+        HealthTech
     }
 
     /** STRUCTS */
@@ -51,9 +52,9 @@ contract Organization {
         _;
     }
 
-    modifier verifiedOnly() {
+    modifier verifiedOnly(address user) {
         require(
-            organizationProfileMap[msg.sender].profileId > 0,
+            organizationProfileMap[user].profileId > 0,
             "Verified organization only!"
         );
 
@@ -79,12 +80,12 @@ contract Organization {
         marketplaceInstance = Marketplace(market);
     }
 
-    function addNewOrganisation(
+    function addNewOrganization(
         address newOrg,
         OrganizationType organizationType,
         string memory location,
         string memory organizationName
-    ) public verifiedOnly {
+    ) public verifiedOnly(msg.sender) {
         // check if new org already is verified
         require(
             organizationProfileMap[newOrg].profileId == 0,
@@ -120,12 +121,9 @@ contract Organization {
         return organizationProfileMap[org];
     }
 
-    function removeOrganization(address orgAddress) public verifiedOnly {
-        require(
-            organizationProfileMap[orgAddress].profileId > 0,
-            "Org to delete is not verified organization!"
-        );
-
+    function removeOrganization(
+        address orgAddress
+    ) public verifiedOnly(msg.sender) verifiedOnly(orgAddress) {
         require(
             msg.sender == organizationProfileMap[orgAddress].verifiedBy,
             "Org not eligible to remove organization!"

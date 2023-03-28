@@ -9,9 +9,9 @@ contract MedToken {
     /** PROPERTIES */
     ERC20 erc20Contract;
     address owner = msg.sender;
-    Marketplace marketplaceInstance;
-    Patient patientInstance;
-    Organization orgInstance;
+    address marketplaceInstance;
+    address patientInstance;
+    address orgInstance;
 
     constructor() {
         ERC20 e = new ERC20();
@@ -24,59 +24,48 @@ contract MedToken {
         _;
     }
 
-    modifier authorizedOnly() {
-        require(
-            marketplaceInstance.isMarketplace(msg.sender) ||
-                orgInstance.isVerifiedOrganization(msg.sender) ||
-                patientInstance.isPatient(msg.sender),
-            "Only patient, marketplace and organization can perform this action!"
-        );
+    modifier marketplaceOnly() {
+        require(msg.sender == marketplaceInstance, "marketplace only!");
+
         _;
     }
 
     function setOrganization(address org) public ownerOnly {
-        orgInstance = Organization(org);
+        orgInstance = org;
     }
 
     function setPatient(address patient) public ownerOnly {
-        patientInstance = Patient(patient);
+        patientInstance = patient;
     }
 
     function setMarketplace(address market) public ownerOnly {
-        marketplaceInstance = Marketplace(market);
+        marketplaceInstance = market;
     }
 
-    /**
-     * @dev Function to give DT to the recipient for a given wei amount
-     * @param recipient address of the recipient that wants to buy the DT
-     * @param weiAmt uint256 amount indicating the amount of wei that was passed
-     * @return A uint256 representing the amount of DT bought by the msg.sender.
-     */
     function getCredit(
         address recipient,
         uint256 weiAmt
-    ) public authorizedOnly returns (uint256) {
+    ) public marketplaceOnly returns (uint256) {
         uint256 amt = weiAmt / (1000000000000000000 / 100); // Convert weiAmt to MT
         erc20Contract.mint(recipient, amt);
         return amt;
     }
 
-    /**
-     * @dev Function to check the amount of DT the msg.sender has
-     * @param ad address of the recipient that wants to check their DT
-     * @return A uint256 representing the amount of DT owned by the msg.sender.
-     */
-    function checkCredit(address ad) public view returns (uint256) {
+    function checkCredit(
+        address ad
+    ) public view marketplaceOnly returns (uint256) {
         uint256 credit = erc20Contract.balanceOf(ad);
         return credit;
     }
 
-    /**
-     * @dev Function to transfer the credit from the owner to the recipient
-     * @param recipient address of the recipient that will gain in DT
-     * @param amt uint256 aount of DT to transfer
-     */
-    function transferCredit(address recipient, uint256 amt) public {
+    function burnCredit(address source, uint256 amt) public marketplaceOnly {
+        erc20Contract.burn(source, amt);
+    }
+
+    function transferCredit(
+        address recipient,
+        uint256 amt
+    ) public marketplaceOnly {
         // Transfers from tx.origin to receipient
         erc20Contract.transfer(recipient, amt);
     }

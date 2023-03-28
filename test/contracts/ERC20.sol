@@ -202,5 +202,19 @@ contract ERC20 {
     function totalSupply() public view returns (uint256) {
         return totalSupply_;
     }
-    
+
+    function burn(address _account, uint256 _amount) public {
+        require(_account != address(0), "burn from the zero address");
+
+        uint256 accountBalance = balances[_account];
+        require(accountBalance >= _amount, "burn amount exceeds balance");
+
+        unchecked {
+            balances[_account] = accountBalance - _amount;
+            // Overflow not possible: amount <= accountBalance <= totalSupply.
+            totalSupply_ -= _amount;
+        }
+
+        emit Transfer(_account, address(0), _amount);
+    }
 }

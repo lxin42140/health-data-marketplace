@@ -51,6 +51,7 @@ contract Marketplace {
         uint256 expiryDate,
         uint256 paidPrice
     ); // event of purchasing a listing access
+    event MintMedToken(address recipient, uint256 amount);
 
     constructor(uint256 marketFee, uint256 orgFee) {
         marketCommissionRate = marketFee;
@@ -86,15 +87,17 @@ contract Marketplace {
         _;
     }
 
-    /********************UTILITY FUNCTIONS *****/
+    /********************PRIVATE *****/
 
-    // returns true if input date is earlier than block timestamp
     function isExpired(uint256 date) private view returns (bool) {
+        // returns true if input date is earlier than block timestamp
+
         return date > 0 && block.timestamp > date;
     }
 
-    // generate a 6 digit OTP which is used to access the DB
     function generateRandomOTP() private view returns (uint256) {
+        // generate a 6 digit OTP which is used to access the DB
+
         uint256 seed = uint256(
             keccak256(abi.encodePacked(block.timestamp, block.difficulty))
         );
@@ -103,11 +106,12 @@ contract Marketplace {
         return otp;
     }
 
-    // common method to get the purchase detail given buyer address and listing id
     function getPurchaseDetails(
         address buyer,
         uint256 id
     ) private view returns (Purchase memory) {
+        // common method to get the purchase detail given buyer address and listing id
+
         Purchase[] memory orgPurchaseHistory = purchases[buyer];
         uint index = 0;
         bool purchaseExists = false;
@@ -140,8 +144,7 @@ contract Marketplace {
         return purchase;
     }
 
-    /********************APIS *****/
-
+    /******************************SETTERS****************/
     function setOrganization(address org) public ownerOnly {
         orgInstance = Organization(org);
     }
@@ -154,14 +157,55 @@ contract Marketplace {
         medTokenInstance = MedToken(token);
     }
 
-    function isOwner(address user) public view returns (bool) {
-        return user == owner;
+    /******************************TOKEN****************/
+    //TESTED
+    function getMT() public payable {
+        require(
+            orgInstance.isVerifiedOrganization(msg.sender) ||
+                patientInstance.isPatient(msg.sender) ||
+                msg.sender == owner,
+            "Only patient, owner and organization can perform this action!"
+        );
+
+        uint256 amount = medTokenInstance.getCredit(msg.sender, msg.value);
+
+        emit MintMedToken(msg.sender, amount);
     }
 
-    function isMarketplace(address user) public view returns (bool) {
-        return user == address(this);
+    //TESTED
+    function checkMT() public view returns (uint256) {
+        return medTokenInstance.checkCredit(msg.sender);
     }
 
+    //TESTED
+    function returnMT() public {
+        // get eth back at conversion rate of 0.009 Eth per MT
+        // and burn corresponding amount of MT
+
+        require(
+            orgInstance.isVerifiedOrganization(msg.sender) ||
+                patientInstance.isPatient(msg.sender) ||
+                msg.sender == owner,
+            "Only patient, owner and organization can perform this action!"
+        );
+
+        uint256 availMT = medTokenInstance.checkCredit(msg.sender);
+
+        require(availMT > 0, "No MT!");
+
+        // transfer 10% fee to marketplace
+        medTokenInstance.transferCredit(address(this), availMT / 10);
+
+        // burn remaining 90% credit from user
+        medTokenInstance.burnCredit(msg.sender, (availMT / 10) * 9);
+
+        // convert remaining to eth and send back to user
+        address payable recipient = payable(address(msg.sender));
+        uint256 weiAmount = availMT * (1000000000000000000 / 100);
+        recipient.transfer((weiAmount / 10) * 9);
+    }
+
+    /******************************API****************/
     function addListing(
         uint256 price,
         MedicalRecord.MedicalRecordType[] memory recordTypes,
