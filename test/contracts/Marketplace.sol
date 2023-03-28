@@ -13,7 +13,7 @@ contract Marketplace {
     struct Listing {
         uint256 id;
         address listingOwner;
-        uint256 price;
+        uint256 pricePerDay;
         MedicalRecord.MedicalRecordType[] recordTypes;
         Organization.OrganizationType[] allowOrganizationTypes;
     }
@@ -61,7 +61,7 @@ contract Marketplace {
     /********************MODIFIERS *****/
 
     modifier ownerOnly() {
-        require(msg.sender == owner, "Only only!");
+        require(msg.sender == owner, "Owner only!");
 
         _;
     }
@@ -82,7 +82,7 @@ contract Marketplace {
     }
 
     modifier validListingOnly(uint256 id) {
-        require(listingMap[id].id != 0, "Invalid listing!");
+        require(listingMap[id].id != 0, "Listing does not exists!");
 
         _;
     }
@@ -206,11 +206,28 @@ contract Marketplace {
     }
 
     /******************************API****************/
+    //TESTED
     function addListing(
-        uint256 price,
+        uint256 pricePerDay,
         MedicalRecord.MedicalRecordType[] memory recordTypes,
         Organization.OrganizationType[] memory allowOrganizationTypes
-    ) public patientOnly(msg.sender) returns (Listing memory) {
+    ) public patientOnly(msg.sender) returns (uint256) {
+        require(
+            recordTypes.length > 0,
+            "Provide min 1 type of record that you wish to sell!"
+        );
+
+        // check that patient has at least one record of matching recordTypes
+        address[] memory records = patientInstance.getMedicalRecords(
+            msg.sender,
+            recordTypes
+        );
+
+        require(
+            records.length > 0,
+            "No medical records of matching types to sell!"
+        );
+
         // incre id
         listingId++;
 
@@ -218,7 +235,7 @@ contract Marketplace {
         Listing memory newListing = Listing(
             listingId, // id
             msg.sender, // listingOwner
-            price, // price per time unit
+            pricePerDay, // pricePerDay per time unit
             recordTypes,
             allowOrganizationTypes
         );
@@ -227,12 +244,20 @@ contract Marketplace {
 
         emit ListingAdded(msg.sender, listingId);
 
+        return listingId;
+    }
+
+    // TESTED
+    function getListingDetails(
+        uint256 id
+    ) public view validListingOnly(id) returns (Listing memory) {
         return listingMap[listingId];
     }
 
+    // TESTED
     function removeListing(
         uint256 id
-    ) public validListingOnly(id) returns (Listing memory) {
+    ) public validListingOnly(id) {
         Listing memory listing = listingMap[id];
 
         // only listing ower can remove listing
@@ -244,8 +269,6 @@ contract Marketplace {
         delete listingMap[id];
 
         emit ListingRemoved(id, "Remove by owner!");
-
-        return listing;
     }
 
     function buyListing(
@@ -290,7 +313,7 @@ contract Marketplace {
 
         // check if buyer has enough tokens to pay
         // for now, default to charge by per day
-        uint256 totalPrice = listing.price * daysToPurchase;
+        uint256 totalPrice = listing.pricePerDay * daysToPurchase;
         require(
             medTokenInstance.checkCredit(msg.sender) >= totalPrice,
             "Insufficient tokens!"

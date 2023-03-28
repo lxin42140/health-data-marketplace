@@ -67,12 +67,22 @@ contract("Marketplace", function (accounts) {
             SEED_ORG,
             PATIENT,
             0,
-            "www.file.com",
+            "www.0.com",
             {
                 from: SEED_ORG
             }
         )
 
+        // patient add medical record
+        await patientInstance.addNewMedicalRecord(
+            VERIFIED_ORG_1,
+            PATIENT,
+            1,
+            "www.1.com",
+            {
+                from: PATIENT
+            }
+        )
     });
 
     it("Get and check MT", async () => {
@@ -154,4 +164,58 @@ contract("Marketplace", function (accounts) {
         assert((new BigNumber(10)).isEqualTo(marketCredit), "Incorrect MT fee");
     })
 
+    it("add listing", async () => {
+        await truffleAssert.reverts(marketplaceInstance.addListing(1, [0], [0], {
+            from: INVALID
+        }), "Patient only!");
+
+        await truffleAssert.reverts(marketplaceInstance.addListing(1, [], [0], {
+            from: PATIENT
+        }), "Provide min 1 type of record that you wish to sell!");
+
+        await truffleAssert.reverts(marketplaceInstance.addListing(1, [4], [0], {
+            from: PATIENT
+        }), "No medical records of matching types to sell!");
+
+        const listing1 = await marketplaceInstance.addListing(1, [0], [0], {
+            from: PATIENT
+        });
+
+        truffleAssert.eventEmitted(listing1, "ListingAdded");
+    });
+
+    it("get listing", async () => {
+        const addedListing = await marketplaceInstance.getListingDetails.call(1);
+
+        assert.equal(addedListing.id, 1, "Wrong listing id");
+        assert.equal(addedListing.listingOwner, PATIENT, "Wrong listing owner");
+        assert.equal(addedListing.pricePerDay, 1, "Wrong listing price");
+        assert.deepEqual(addedListing.recordTypes, ['0'], "Wrong listing record types");
+        assert.deepEqual(addedListing.allowOrganizationTypes, ['0'], "Wrong listing allowed organization");
+    });
+
+    it("remove listing", async () => {
+        await truffleAssert.reverts(marketplaceInstance.removeListing(2, {
+            from: INVALID
+        }), "Listing does not exists!");
+
+        await truffleAssert.reverts(marketplaceInstance.removeListing(1, {
+            from: INVALID
+        }), "Only listing owner can perform this action!");
+
+        const removeListing = await marketplaceInstance.removeListing(1, {
+            from: PATIENT
+        });
+
+        truffleAssert.eventEmitted(removeListing, "ListingRemoved");
+
+        await truffleAssert.reverts(marketplaceInstance.removeListing(1, {
+            from: INVALID
+        }), "Listing does not exists!");
+    });
+
+
+    it("buy listing", async () => {
+
+    });
 });
