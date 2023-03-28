@@ -46,5 +46,52 @@ contract("Organization", function (accounts) {
 
     console.log("Testing organization contract");
 
+    const SEED_ORG = accounts[0]; // HOSPITAL
+    const VERIFIED_ORG_1 = accounts[1]; // RESEARCH
+    const VERIFIED_ORG_2 = accounts[2]; // Pharmacy,
+    const INVALID = accounts[4];
+
+    it("add new organization", async () => {
+        truffleAssert.reverts(orgInstance.addNewOrganization(VERIFIED_ORG_1, 0, "singapore", "KK", {
+            from: INVALID
+        }), "Verified organization only!");
+
+        truffleAssert.reverts(orgInstance.addNewOrganization(SEED_ORG, 0, "singapore", "KK", {
+            from: SEED_ORG
+        }), "Organization already added!");
+
+        const orgAdded = await orgInstance.addNewOrganization(VERIFIED_ORG_1, 1, "singapore", "TTS")
+
+        truffleAssert.eventEmitted(orgAdded, "OrganizationAdded");
+
+        await orgInstance.addNewOrganization(VERIFIED_ORG_2, 2, "singapore", "KK")
+    });
+
+
+    it("get organization type", async () => {
+        const orgType = await orgInstance.getOrganizationType(VERIFIED_ORG_1);
+        assert.equal(orgType, 1, "incorrect organization type!");
+    });
+
+    it("get organization profile", async () => {
+        const profile = await orgInstance.getOrganizationProfile(VERIFIED_ORG_1);
+
+        assert.deepEqual(profile.verifiedBy, SEED_ORG, "incorrect verified by");
+        assert.deepEqual(profile.organizationType, 1, "incorrect organization type");
+        assert.deepEqual(profile.location, "singapore", "incorrect location");
+        assert.deepEqual(profile.organizationName, "TTS", "incorrect organization name");
+    });
+
+    it("remove organization profile", async () => {
+        await truffleAssert.reverts(orgInstance.removeOrganization(VERIFIED_ORG_1, {
+            from: VERIFIED_ORG_2
+        }), "Org not eligible to remove organization!");
+
+        const deleteOrg = await orgInstance.removeOrganization(VERIFIED_ORG_1, {
+            from: SEED_ORG
+        });
+
+        truffleAssert.eventEmitted(deleteOrg, "OrganizationRemoved");
+    });
 
 });

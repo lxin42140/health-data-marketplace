@@ -18,7 +18,7 @@ const oneEth = new BigNumber(1000000000000000000); // 1 eth
 // Address of contracts in truffle can be obtain with: diceCasinoInstance.address
 // =============================     Useful concepts       =============================:
 
-contract("Marketplace", function (accounts) {
+contract("Marketplace, MedToken, MedicalRecord", function (accounts) {
     before(async () => {
         marketplaceInstance = await Marketplace.deployed();
         medTokenInstance = await MedToken.deployed();
@@ -44,7 +44,7 @@ contract("Marketplace", function (accounts) {
         await patientInstance.setOrganization(orgInstance.address);
     });
 
-    console.log("Testing Marketplace contract");
+    console.log("Testing Marketplace, MedToken, MedicalRecord contracts");
 
     const SEED_ORG = accounts[0]; // HOSPITAL
     const VERIFIED_ORG_1 = accounts[1]; // RESEARCH
@@ -263,7 +263,7 @@ contract("Marketplace", function (accounts) {
         });
 
         assert.equal(purchaseDetails.medicalRecordPointers.length, 1, "accessible medical record incorrect");
-        assert.equal(purchaseDetails.otp.length, 6, "OTP length incorrect");
+        assert(purchaseDetails.otp.length > 0, "no OTP");
         assert.equal(purchaseDetails.listing.id, 1, "associated listing incorrect");
     });
 

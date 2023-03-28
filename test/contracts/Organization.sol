@@ -47,7 +47,7 @@ contract Organization {
 
     /********************MODIFIERS *****/
     modifier ownerOnly() {
-        require(msg.sender == owner, "Only only!");
+        require(msg.sender == owner, "Owner only!");
 
         _;
     }
@@ -110,18 +110,21 @@ contract Organization {
         emit OrganizationAdded(msg.sender, newOrg);
     }
 
+    // TESTED
     function getOrganizationType(
         address org
-    ) public view marketplaceOnly(msg.sender) returns (OrganizationType) {
+    ) public view verifiedOnly(org) returns (OrganizationType) {
         return organizationProfileMap[org].organizationType;
     }
 
+    // TESTED
     function getOrganizationProfile(
         address org
-    ) public view returns (Profile memory) {
+    ) public view verifiedOnly(org) returns (Profile memory) {
         return organizationProfileMap[org];
     }
 
+    // TESTED
     function removeOrganization(
         address orgAddress
     ) public verifiedOnly(msg.sender) verifiedOnly(orgAddress) {
@@ -135,6 +138,7 @@ contract Organization {
         emit OrganizationRemoved(msg.sender, orgAddress);
     }
 
+    // TESTED
     function isVerifiedOrganization(
         address userAddress
     ) public view returns (bool) {
