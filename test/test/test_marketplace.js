@@ -53,28 +53,35 @@ contract("Marketplace", function (accounts) {
     const INVALID = accounts[4];
 
     it("set up", async () => {
-        // add patient
-        await patientInstance.addNewPatient(PATIENT, 10, "male", "singapore", {
-            from: SEED_ORG,
-        });
-
         // add new org
         await orgInstance.addNewOrganization(VERIFIED_ORG_1, 1, "Singapore", "TTS")
         await orgInstance.addNewOrganization(VERIFIED_ORG_2, 2, "Singapore", "KK")
 
-        // organization add medical record
-        await patientInstance.addNewMedicalRecord(
-            SEED_ORG,
+        await patientInstance.addNewPatient(PATIENT, 10, "male", "singapore", {
+            from: VERIFIED_ORG_1,
+        });
+
+        // await patientInstance.addNewMedicalRecord(
+        //     SEED_ORG,
+        //     PATIENT,
+        //     0,
+        //     "www.0.com",
+        //     {
+        //         from: SEED_ORG
+        //     }
+        // )
+
+        RECORD_1 = await patientInstance.addNewMedicalRecord(
+            VERIFIED_ORG_1,
             PATIENT,
             0,
             "www.0.com",
             {
-                from: SEED_ORG
+                from: PATIENT
             }
         )
 
-        // patient add medical record
-        await patientInstance.addNewMedicalRecord(
+        RECORD_2 = await patientInstance.addNewMedicalRecord(
             VERIFIED_ORG_1,
             PATIENT,
             1,
@@ -91,10 +98,12 @@ contract("Marketplace", function (accounts) {
             value: oneEth
         }), "Only patient, owner and organization can perform this action!");
 
-        await marketplaceInstance.getMT({
+        const creditMinted = await marketplaceInstance.getMT({
             from: SEED_ORG,
             value: oneEth
         });
+
+        truffleAssert.eventEmitted(creditMinted, "CreditMinted");
 
         await marketplaceInstance.getMT({
             from: VERIFIED_ORG_1,
@@ -147,9 +156,11 @@ contract("Marketplace", function (accounts) {
         assert((new BigNumber(100)).isEqualTo(verifiedOrgCredit), "Incorrect MT given");
 
         // return credit
-        await marketplaceInstance.returnMT({
+        const returnCredit = await marketplaceInstance.returnMT({
             from: VERIFIED_ORG_2
         })
+
+        truffleAssert.eventEmitted(returnCredit, "CreditReturned");
 
         // check org credit
         verifiedOrgCredit = await marketplaceInstance.checkMT({
@@ -194,6 +205,82 @@ contract("Marketplace", function (accounts) {
         assert.deepEqual(addedListing.allowOrganizationTypes, ['0'], "Wrong listing allowed organization");
     });
 
+    it("Make new purchase of listing", async () => {
+        await truffleAssert.reverts(marketplaceInstance.buyListing(1, 0, {
+            from: INVALID
+        }), "Verified organization only!");
+
+        await truffleAssert.reverts(marketplaceInstance.buyListing(1, 0, {
+            from: VERIFIED_ORG_2
+        }), "Required to purchase min 30 days of access!");
+
+        await truffleAssert.reverts(marketplaceInstance.buyListing(1, 30, {
+            from: VERIFIED_ORG_2
+        }), "Organization type not allowed to purchase this listing!");
+
+        await truffleAssert.reverts(marketplaceInstance.buyListing(1, 101, {
+            from: SEED_ORG
+        }), "Insufficient tokens!");
+
+        // credits before purchase
+        let sellerCredit = await marketplaceInstance.checkMT({ from: PATIENT });
+        sellerCredit = sellerCredit.toNumber();
+
+        let marketPlaceCredit = await marketplaceInstance.checkMT({ from: marketplaceInstance.address });
+        marketPlaceCredit = marketPlaceCredit.toNumber();
+
+        let buyerCredit = await marketplaceInstance.checkMT({ from: SEED_ORG });
+        buyerCredit = buyerCredit.toNumber();
+
+        let issuedByCredit = await marketplaceInstance.checkMT({ from: VERIFIED_ORG_1 });
+        issuedByCredit = issuedByCredit.toNumber();
+
+        // purchase
+        const purchase = await marketplaceInstance.buyListing(1, 100, {
+            from: SEED_ORG
+        });
+
+        truffleAssert.eventEmitted(purchase, "NewPurchase");
+
+        // credits after purchase
+        let afterSellerCredit = await marketplaceInstance.checkMT({ from: PATIENT });
+        assert.equal(afterSellerCredit.toNumber(), sellerCredit + 80, "Wrong seller earnings");
+
+        let afterMarketPlaceCredit = await marketplaceInstance.checkMT({ from: marketplaceInstance.address });
+        assert.equal(afterMarketPlaceCredit.toNumber(), marketPlaceCredit + 10, "Wrong commission for marketplace");
+
+        let afterBuyerCredit = await marketplaceInstance.checkMT({ from: SEED_ORG });
+        assert.equal(afterBuyerCredit.toNumber(), buyerCredit - 100, "Wrong credit deducted from buyer");
+
+        let afterIssuedByCredit = await marketplaceInstance.checkMT({ from: VERIFIED_ORG_1 });
+        assert.equal(afterIssuedByCredit.toNumber(), issuedByCredit + 10, "Wrong commission for issued by organization");
+
+    });
+
+    it("get purchase details", async () => {
+        const purchaseDetails = await marketplaceInstance.buyerGetPurchaseDetails(1, {
+            from: SEED_ORG
+        });
+
+        assert.equal(purchaseDetails.medicalRecordPointers.length, 1, "accessible medical record incorrect");
+        assert.equal(purchaseDetails.otp.length, 6, "OTP length incorrect");
+        assert.equal(purchaseDetails.listing.id, 1, "associated listing incorrect");
+    });
+
+    it("access to record metadata", async () => {
+        const purchaseDetails = await marketplaceInstance.buyerGetPurchaseDetails(1, {
+            from: SEED_ORG
+        });
+
+        const hasAccess1 = await marketplaceInstance.hasPurchasedAccessToRecord(SEED_ORG, purchaseDetails.medicalRecordPointers[0]);
+
+        assert(hasAccess1, "no access to medical record");
+
+        const hasAccess2 = await marketplaceInstance.hasPurchasedAccessToRecord(INVALID, purchaseDetails.medicalRecordPointers[0]);
+
+        assert(!hasAccess2, "should not have access to medical record");
+    });
+
     it("remove listing", async () => {
         await truffleAssert.reverts(marketplaceInstance.removeListing(2, {
             from: INVALID
@@ -212,10 +299,5 @@ contract("Marketplace", function (accounts) {
         await truffleAssert.reverts(marketplaceInstance.removeListing(1, {
             from: INVALID
         }), "Listing does not exists!");
-    });
-
-
-    it("buy listing", async () => {
-
     });
 });

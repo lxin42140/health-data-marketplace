@@ -44,14 +44,21 @@ contract Marketplace {
     /** EVENTS */
     event ListingAdded(address seller, uint256 listingId); // event of adding a listing
     event ListingRemoved(uint256 listingId, string description); // event of removing a listing
-    event ListingPurchased(
+    event NewPurchase(
         address buyer,
         uint256 listingId,
         uint256 startDate,
-        uint256 expiryDate,
-        uint256 paidPrice
-    ); // event of purchasing a listing access
-    event MintMedToken(address recipient, uint256 amount);
+        uint256 expiryDate
+    );
+    event UpdatedPurchase(
+        address buyer,
+        uint256 listingId,
+        uint256 startDate,
+        uint256 expiryDate
+    );
+    // event of purchasing a listing access
+    event CreditMinted(address recipient, uint256 amount);
+    event CreditReturned(address recipient, uint256 amount);
 
     constructor(uint256 marketFee, uint256 orgFee) {
         marketCommissionRate = marketFee;
@@ -169,7 +176,7 @@ contract Marketplace {
 
         uint256 amount = medTokenInstance.getCredit(msg.sender, msg.value);
 
-        emit MintMedToken(msg.sender, amount);
+        emit CreditMinted(msg.sender, amount);
     }
 
     //TESTED
@@ -203,6 +210,8 @@ contract Marketplace {
         address payable recipient = payable(address(msg.sender));
         uint256 weiAmount = availMT * (1000000000000000000 / 100);
         recipient.transfer((weiAmount / 10) * 9);
+
+        emit CreditReturned(msg.sender, (availMT / 10) * 9);
     }
 
     /******************************API****************/
@@ -255,9 +264,7 @@ contract Marketplace {
     }
 
     // TESTED
-    function removeListing(
-        uint256 id
-    ) public validListingOnly(id) {
+    function removeListing(uint256 id) public validListingOnly(id) {
         Listing memory listing = listingMap[id];
 
         // only listing ower can remove listing
@@ -271,6 +278,7 @@ contract Marketplace {
         emit ListingRemoved(id, "Remove by owner!");
     }
 
+    // TESTED
     function buyListing(
         uint256 id,
         uint256 daysToPurchase
@@ -278,14 +286,12 @@ contract Marketplace {
         public
         organisationOnly(msg.sender)
         validListingOnly(id)
-        returns (Purchase memory)
+        returns (uint256)
     {
         /**************PURCHASE REQUIREMENT CHECK******/
-
-        // only verified buyers can buy
         require(
-            orgInstance.isVerifiedOrganization(msg.sender),
-            "Only verified organizations can buy listing!"
+            daysToPurchase >= 30,
+            "Required to purchase min 30 days of access!"
         );
 
         Listing memory listing = listingMap[id];
@@ -308,7 +314,10 @@ contract Marketplace {
                 }
             }
 
-            require(isAllowed, "Organization is banned by listing owner!");
+            require(
+                isAllowed,
+                "Organization type not allowed to purchase this listing!"
+            );
         }
 
         // check if buyer has enough tokens to pay
@@ -347,6 +356,13 @@ contract Marketplace {
                 block.timestamp +
                 (daysToPurchase * SECONDS_IN_DAYS);
             existingPurchases[index].otp = generateRandomOTP();
+
+            emit UpdatedPurchase(
+                msg.sender,
+                id,
+                existingPurchases[index].accessStartDate,
+                existingPurchases[index].expirationDate
+            );
         } else {
             // create new purchase history and add to list
             address[] memory recordAddress;
@@ -362,40 +378,87 @@ contract Marketplace {
             // add to purchases
             purchases[msg.sender].push(newPurchase);
             index = purchases[msg.sender].length - 1;
+
+            emit NewPurchase(
+                msg.sender,
+                id,
+                newPurchase.accessStartDate,
+                newPurchase.expirationDate
+            );
         }
 
         /**************FUND TRANSFER******/
 
+        // transfer to marketplace
         uint256 marketCommission = (totalPrice / 100) * marketCommissionRate;
-        uint256 orgComission = (totalPrice / 100) * orgCommissionRate;
-        uint256 sellerEarning = totalPrice - marketCommission - orgComission;
-
-        address patient = listing.listingOwner;
-        Patient.Profile memory profile = patientInstance.getPatientProfile(
-            patient
-        );
-        address issuedBy = profile.issuedBy;
-
         medTokenInstance.transferCredit(address(this), marketCommission);
-        medTokenInstance.transferCredit(listing.listingOwner, sellerEarning);
+
+        // transfer to org that added the patient
+        uint256 orgComission = (totalPrice / 100) * orgCommissionRate;
+        address issuedBy = patientInstance.getPatientIssuedBy(
+            listing.listingOwner
+        );
         medTokenInstance.transferCredit(issuedBy, orgComission);
 
-        return purchases[msg.sender][index];
+        // transfer to seller
+        uint256 sellerEarning = totalPrice - marketCommission - orgComission;
+        medTokenInstance.transferCredit(listing.listingOwner, sellerEarning);
+
+        return index;
     }
 
+    // TESTED
     // for the market to get purchase details of all buyers
     // for DB layer
     function marketGetPurchaseDetails(
         address org,
-        uint256 id
+        uint256 purchaseId
     ) public view ownerOnly returns (Purchase memory) {
-        return getPurchaseDetails(org, id);
+        return getPurchaseDetails(org, purchaseId);
     }
 
+    // TESTED
     // for individual organisation to get their purchase details
     function buyerGetPurchaseDetails(
-        uint256 id
+        uint256 purchaseId
     ) public view organisationOnly(msg.sender) returns (Purchase memory) {
-        return getPurchaseDetails(msg.sender, id);
+        return getPurchaseDetails(msg.sender, purchaseId);
+    }
+
+    // TESTED
+    function hasPurchasedAccessToRecord(
+        address buyer,
+        address medRecord
+    ) public view returns (bool) {
+        Purchase[] memory buyerPurchases = purchases[buyer];
+
+        if (buyerPurchases.length == 0) {
+            return false;
+        }
+
+        bool hasAccess = false;
+
+        for (uint i = 0; i < buyerPurchases.length; i++) {
+            Purchase memory purchase = buyerPurchases[i];
+
+            if (isExpired(purchase.expirationDate)) {
+                return false;
+            }
+
+            // retrieve matching medical record addresses
+            address[] memory matchingRecords = patientInstance
+                .getMedicalRecords(
+                    purchase.listing.listingOwner,
+                    purchase.listing.recordTypes
+                );
+
+            for (uint j = 0; j < matchingRecords.length; j++) {
+                if (matchingRecords[j] == medRecord) {
+                    return true;
+                }
+            }
+        }
+
+        return hasAccess;
     }
 }

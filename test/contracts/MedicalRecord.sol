@@ -18,6 +18,7 @@ contract MedicalRecord {
     struct Metadata {
         address patient;
         address issuedBy;
+        address record;
         uint dateCreated;
         MedicalRecordType recordType;
         string uri;
@@ -97,17 +98,23 @@ contract MedicalRecord {
         }
     }
 
+    // TESTED
     function getMetadata() public view returns (Metadata memory) {
         require(
             msg.sender == marketplaceInstance ||
                 msg.sender == issuedBy ||
-                msg.sender == owner,
-            "Only marketplace, owner and issued by org can access!"
+                msg.sender == owner ||
+                Marketplace(marketplaceInstance).hasPurchasedAccessToRecord(
+                    msg.sender,
+                    address(this)
+                ),
+            "No access!"
         );
 
         Metadata memory data = Metadata(
             owner,
             issuedBy,
+            address(this),
             createdDate,
             medicalRecordType,
             filePointer
@@ -116,25 +123,33 @@ contract MedicalRecord {
         return data;
     }
 
+    // TESTED
     function getRecordType() public view returns (MedicalRecordType) {
         require(
-            msg.sender == patientInstance ||
-                msg.sender == marketplaceInstance ||
+            msg.sender == marketplaceInstance ||
+                msg.sender == issuedBy ||
                 msg.sender == owner ||
-                msg.sender == issuedBy,
-            "No permission to access the record!"
+                Marketplace(marketplaceInstance).hasPurchasedAccessToRecord(
+                    msg.sender,
+                    address(this)
+                ),
+            "No access!"
         );
 
         return medicalRecordType;
     }
 
+    // TESTED
     function getFilePointer() public view returns (string memory) {
         require(
-            msg.sender == patientInstance ||
-                msg.sender == marketplaceInstance ||
+            msg.sender == marketplaceInstance ||
+                msg.sender == issuedBy ||
                 msg.sender == owner ||
-                msg.sender == issuedBy,
-            "No permission to access the record!"
+                Marketplace(marketplaceInstance).hasPurchasedAccessToRecord(
+                    msg.sender,
+                    address(this)
+                ),
+            "No access!"
         );
 
         return filePointer;

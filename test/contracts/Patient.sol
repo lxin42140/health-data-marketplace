@@ -217,6 +217,19 @@ contract Patient {
         }
     }
 
+    // TESTED
+    function getPatientIssuedBy(
+        address patientAddress
+    )
+        public
+        view
+        marketplaceOnly(msg.sender)
+        patientOnly(patientAddress)
+        returns (address)
+    {
+        return profileMap[patientAddress].issuedBy;
+    }
+
     function isPatient(address patientAddress) public view returns (bool) {
         return profileMap[patientAddress].profileId > 0;
     }

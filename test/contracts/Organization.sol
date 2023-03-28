@@ -80,6 +80,7 @@ contract Organization {
         marketplaceInstance = Marketplace(market);
     }
 
+    // TESTED
     function addNewOrganization(
         address newOrg,
         OrganizationType organizationType,
