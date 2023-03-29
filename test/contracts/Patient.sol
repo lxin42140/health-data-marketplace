@@ -26,12 +26,9 @@ contract Patient {
     mapping(address => MedicalRecord.MedicalRecordType) recordTypeMap; // medical record and its type
 
     /** EVENTS */
-    event PatientAdded(address addedBy, address newPatientAddress);
-    event MedicalRecordAdded(address caller, address medicalRecord);
-    event Log(string reason);
-    event Log(uint number);
-
-    constructor() {}
+    event PatientAdded(address addedBy, address newPatientAddress); // event when new patient is added
+    event PatientRemoved(address removedBy, address patientAddress); // event when new patient is removed
+    event MedicalRecordAdded(address caller, address medicalRecord); // event when new medical record is added
 
     /********************MODIFIERS *****/
 
@@ -113,11 +110,14 @@ contract Patient {
         address patientAddress
     ) public patientOnly(patientAddress) {
         require(
-            msg.sender == profileMap[patientAddress].issuedBy,
-            "Only issued by org can perform this!"
+            msg.sender == profileMap[patientAddress].issuedBy ||
+                msg.sender == owner,
+            "User cannot remove patient!"
         );
 
         delete profileMap[patientAddress];
+
+        emit PatientRemoved(msg.sender, patientAddress);
     }
 
     // TESTED

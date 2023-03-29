@@ -61,8 +61,8 @@ contract Marketplace {
     event CreditReturned(address recipient, uint256 amount);
 
     constructor(uint256 marketFee, uint256 orgFee) {
-        marketCommissionRate = marketFee;
-        orgCommissionRate = orgFee;
+        marketCommissionRate = marketFee; // commission rate that marketplace earns when patient successfully sells a listing
+        orgCommissionRate = orgFee; // commission rate that organization which added the patient will earn when the patient successfully sells a listing
     }
 
     /********************MODIFIERS *****/

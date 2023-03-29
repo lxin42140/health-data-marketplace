@@ -92,7 +92,7 @@ contract("Marketplace, MedToken, MedicalRecord", function (accounts) {
         )
     });
 
-    it("Get and check MT", async () => {
+    it("get MT", async () => {
         await truffleAssert.reverts(marketplaceInstance.getMT({
             from: INVALID,
             value: oneEth
@@ -104,7 +104,9 @@ contract("Marketplace, MedToken, MedicalRecord", function (accounts) {
         });
 
         truffleAssert.eventEmitted(creditMinted, "CreditMinted");
+    });
 
+    it("check MT", async () => {
         await marketplaceInstance.getMT({
             from: VERIFIED_ORG_1,
             value: oneEth
@@ -133,6 +135,7 @@ contract("Marketplace, MedToken, MedicalRecord", function (accounts) {
         assert(expectedMT.isEqualTo(verifiedOrgCredit), "Incorrect MT given");
         assert(expectedMT.isEqualTo(patientCredit), "Incorrect MT given");
     });
+
 
     it("return MT", async () => {
         await truffleAssert.reverts(marketplaceInstance.returnMT({

@@ -31,11 +31,13 @@ contract Organization {
     uint256 profileId;
 
     /** EVENTS */
-    event OrganizationAdded(address addedBy, address newOrgAddress);
-    event OrganizationRemoved(address removedBy, address deletedOrgAddress);
+    event OrganizationAdded(address addedBy, address newOrgAddress); // event when new organization is added
+    event OrganizationRemoved(address removedBy, address deletedOrgAddress); // event when organization is removed
 
     constructor() {
+        // add default seeder organization
         profileId++;
+
         organizationProfileMap[msg.sender] = Profile(
             profileId,
             msg.sender,
@@ -129,7 +131,8 @@ contract Organization {
         address orgAddress
     ) public verifiedOnly(msg.sender) verifiedOnly(orgAddress) {
         require(
-            msg.sender == organizationProfileMap[orgAddress].verifiedBy,
+            msg.sender == organizationProfileMap[orgAddress].verifiedBy ||
+                msg.sender == owner,
             "Org not eligible to remove organization!"
         );
 

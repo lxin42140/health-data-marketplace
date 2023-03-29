@@ -42,6 +42,10 @@ contract MedToken {
         marketplaceInstance = market;
     }
 
+    /**
+        User cannot get credit directly from med token. Credit related operations can only be performed through marketplace
+    */
+
     // TESTED
     function getCredit(
         address recipient,

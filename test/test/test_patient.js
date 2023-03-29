@@ -46,7 +46,7 @@ contract("Patient", function (accounts) {
 
     console.log("Testing patient contract");
 
-    it("add and retrieve new patient", async () => {
+    it("add new patient", async () => {
         await truffleAssert.reverts(patientInstance.addNewPatient(accounts[1], 10, "male", "singapore", {
             from: accounts[2],
         }), "Verified organization only");
@@ -56,7 +56,10 @@ contract("Patient", function (accounts) {
         });
 
         truffleAssert.eventEmitted(patientAdded, "PatientAdded");
+    });
 
+
+    it("retrieve new patient", async () => {
         await patientInstance.getPatientProfile(accounts[1], {
             from: accounts[0],
         });
@@ -145,7 +148,7 @@ contract("Patient", function (accounts) {
         truffleAssert.eventEmitted(medicalRecordAddress, "MedicalRecordAdded");
     });
 
-    it("retrieve and filter medical records", async () => {
+    it("retrieve all patient medical records", async () => {
         const allMedicalRecords = await patientInstance.getMedicalRecords.call(accounts[1],
             [],
             {
@@ -153,7 +156,9 @@ contract("Patient", function (accounts) {
             });
 
         assert.equal(allMedicalRecords.length, 1, "Medical record count is wrong");
+    })
 
+    it("filter medical records", async () => {
         const matchingRecords = await patientInstance.getMedicalRecords.call(
             accounts[1],
             [0],
@@ -182,14 +187,16 @@ contract("Patient", function (accounts) {
             {
                 from: accounts[2]
             }
-        ), "Only issued by org can perform this!");
+        ), "User cannot remove patient!");
 
-        await patientInstance.removePatient(
+        const removedPatient = await patientInstance.removePatient(
             accounts[1],
             {
                 from: accounts[0]
             }
         )
+
+        truffleAssert.eventEmitted(removedPatient, "PatientRemoved");
 
         assert.equal(await patientInstance.isPatient(accounts[1]), false, "User should be deleted from patient");
     });

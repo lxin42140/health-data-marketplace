@@ -38,11 +38,11 @@ contract MedicalRecord {
     bool public isValid;
 
     /** EVENTS */
-    event MedicalRecordAdded(address newMedicalRecord);
-    event ContractStopped();
-    event ContractResumed();
-    event RecordInvalidated();
-    event RecordValidated();
+    event MedicalRecordAdded(address newMedicalRecord); // event when adding new medical record
+    event ContractStopped(); // event when contract access stopped by owner
+    event ContractResumed(); // event when contract access resumed by owner
+    event RecordInvalidated(); // event when organization invalidated the record
+    event RecordValidated(); // event when organization re-validated the record
 
     constructor(
         MedicalRecordType typeOfRecord,
@@ -58,6 +58,10 @@ contract MedicalRecord {
         filePointer = uri;
         patientInstance = patientContract;
         marketplaceInstance = market;
+
+        // by default record is valid
+        isValid = true;
+        contractStopped = false;
     }
 
     /********************MODIFIERS *****/
@@ -76,9 +80,23 @@ contract MedicalRecord {
         _;
     }
 
+    modifier recordValid() {
+        require(isValid, "Record invalid!");
+
+        _;
+    }
+
+    modifier recordNotStopped() {
+        require(!contractStopped, "Record access stopped!");
+
+        _;
+    }
+
     /********************APIS *****/
 
     function toggleContractStopped() public ownerOnly {
+        // for owner to prevent access to record if the owner realized access has been leaked/abused
+
         contractStopped = !contractStopped;
 
         if (contractStopped) {
@@ -89,6 +107,8 @@ contract MedicalRecord {
     }
 
     function toggleValidity() public issuedByOnly {
+        // for organizaion that issued the record to stop access when there is something wrong
+        // with the record
         isValid = !isValid;
 
         if (isValid) {
@@ -99,7 +119,13 @@ contract MedicalRecord {
     }
 
     // TESTED
-    function getMetadata() public view returns (Metadata memory) {
+    function getMetadata()
+        public
+        view
+        recordValid
+        recordNotStopped
+        returns (Metadata memory)
+    {
         require(
             msg.sender == marketplaceInstance ||
                 msg.sender == issuedBy ||
@@ -124,7 +150,13 @@ contract MedicalRecord {
     }
 
     // TESTED
-    function getRecordType() public view returns (MedicalRecordType) {
+    function getRecordType()
+        public
+        view
+        recordValid
+        recordNotStopped
+        returns (MedicalRecordType)
+    {
         require(
             msg.sender == marketplaceInstance ||
                 msg.sender == issuedBy ||
@@ -140,7 +172,13 @@ contract MedicalRecord {
     }
 
     // TESTED
-    function getFilePointer() public view returns (string memory) {
+    function getFilePointer()
+        public
+        view
+        recordValid
+        recordNotStopped
+        returns (string memory)
+    {
         require(
             msg.sender == marketplaceInstance ||
                 msg.sender == issuedBy ||
