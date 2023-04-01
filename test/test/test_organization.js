@@ -31,8 +31,8 @@ contract("Organization", function (accounts) {
         await marketplaceInstance.setMedToken(medTokenInstance.address);
 
         // set up token dependency
-        await medTokenInstance.setOrganization(orgInstance.address);
-        await medTokenInstance.setPatient(patientInstance.address);
+        // await medTokenInstance.setOrganization(orgInstance.address);
+        // await medTokenInstance.setPatient(patientInstance.address);
         await medTokenInstance.setMarketplace(marketplaceInstance.address);
 
         // set up org dependency

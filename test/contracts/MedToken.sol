@@ -10,8 +10,9 @@ contract MedToken {
     ERC20 erc20Contract;
     address owner = msg.sender;
     address marketplaceInstance;
-    address patientInstance;
-    address orgInstance;
+
+    // address patientInstance;
+    // address orgInstance;
 
     constructor() {
         ERC20 e = new ERC20();
@@ -30,13 +31,13 @@ contract MedToken {
         _;
     }
 
-    function setOrganization(address org) public ownerOnly {
-        orgInstance = org;
-    }
+    // function setOrganization(address org) public ownerOnly {
+    //     orgInstance = org;
+    // }
 
-    function setPatient(address patient) public ownerOnly {
-        patientInstance = patient;
-    }
+    // function setPatient(address patient) public ownerOnly {
+    //     patientInstance = patient;
+    // }
 
     function setMarketplace(address market) public ownerOnly {
         marketplaceInstance = market;

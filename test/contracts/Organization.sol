@@ -63,14 +63,14 @@ contract Organization {
         _;
     }
 
-    modifier marketplaceOnly(address marketplace) {
-        require(
-            marketplace == address(marketplaceInstance),
-            "Marketplace only!"
-        );
+    // modifier marketplaceOnly(address marketplace) {
+    //     require(
+    //         marketplace == address(marketplaceInstance),
+    //         "Marketplace only!"
+    //     );
 
-        _;
-    }
+    //     _;
+    // }
 
     /********************APIs *****/
 
